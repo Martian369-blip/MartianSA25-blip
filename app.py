@@ -4,17 +4,15 @@ import pandas as pd
 import numpy as np
 import ta
 import os
-import urllib.request
-import xml.etree.ElementTree as ET
 import plotly.graph_objects as go
 from datetime import datetime
 
-# --- SYSTEM INITIALIZATION MATRIX ---
+# --- SYSTEM INITIALIZATION HUB ---
 st.set_page_config(page_title="MARS_BOT V12.0 Desk", page_icon="🛸", layout="wide")
 
 JOURNAL_FILE = "trading_journal.csv"
 
-# ==================== NATIVE THEME LAYER INJECTIONS ====================
+# ==================== ADVANCED VISUAL THEME ENGINE ====================
 st.markdown("""
     <style>
     .metric-card {
@@ -23,15 +21,6 @@ st.markdown("""
         border-radius: 10px;
         border: 1px solid #232936;
         margin-bottom: 10px;
-    }
-    .news-card-wrapper {
-        background-color: #161a25;
-        padding: 14px;
-        border-radius: 8px;
-        border-left: 4px solid #ff9900;
-        margin-top: 10px;
-        margin-bottom: 10px;
-        color: white;
     }
     .stTabs [data-baseweb="tab-list"] { gap: 4px; }
     .stTabs [data-baseweb="tab"] {
@@ -47,7 +36,7 @@ st.sidebar.markdown("### 🛡️ Capital Defense Deck")
 account_balance_zar = st.sidebar.number_input("Wallet Capital Base (ZAR)", min_value=10.0, value=500.00, step=50.0)
 max_risk_allowed_pct = st.sidebar.slider("Maximum Trade Allocation Risk (%)", 1.0, 10.0, 5.0)
 
-# ==================== COMPREHENSIVE MARKET CATALOG ====================
+# ==================== MASTER COMPREHENSIVE MARKET DROPDOWN ====================
 st.sidebar.markdown("### 🌐 Asset Hub Selector")
 
 market_options = {
@@ -77,7 +66,7 @@ selected_ticker = st.sidebar.selectbox(
 
 active_asset = market_options[selected_ticker]
 
-# ==================== DATA ARCHITECTURE LAYER ====================
+# ==================== ANALYTICS & MATH SCANNING CORES ====================
 def compile_market_signals(df_d, df_h):
     df_h = df_h.copy()
     close_series = pd.Series(df_h['Close'].values.flatten())
@@ -107,48 +96,18 @@ def draw_advanced_chart(df, title_name):
     fig.update_layout(xaxis_rangeslider_visible=False, height=420, template="plotly_dark", paper_bgcolor="#0c0e14", plot_bgcolor="#0c0e14", margin=dict(l=10, r=10, t=30, b=10))
     return fig
 
-def fetch_live_rss_news():
-    headlines = []
-    rss_url = "https://cnbc.com"
-    try:
-        req = urllib.request.Request(rss_url, headers={'User-Agent': 'Mozilla/5.0'})
-        with urllib.request.urlopen(req, timeout=10) as response:
-            xml_data = response.read()
-            root = ET.fromstring(xml_data)
-            for item in root.findall('.//item')[:5]:
-                title = item.find('title')
-                pub_date = item.find('pubDate')
-                title_text = title.text if title is not None else ""
-                date_text = pub_date.text if pub_date is not None else ""
-                if title_text:
-                    headlines.append({"title": title_text, "source": "CNBC Live Desk", "time": date_text[:25].strip()})
-    except Exception:
-        pass
-    return headlines
-
 def load_journal():
     if os.path.exists(JOURNAL_FILE):
         try: return pd.read_csv(JOURNAL_FILE)
         except Exception: pass
     return pd.DataFrame(columns=["Timestamp", "Asset", "Type", "Direction", "Entry_Price", "SL", "TP", "Status", "Profit_Loss_ZAR"])
 
-def log_trade(asset, direction, entry, sl, tp, status, pl):
+def log_trade(asset, direction, entry, sl, tp, status="OPEN", pl=0.0):
     df = load_journal()
-    new_row = {
-        "Timestamp": datetime.now().strftime("%Y-%m-%d %H:%M"),
-        "Asset": str(asset),
-        "Type": "MANUAL",
-        "Direction": str(direction),
-        "Entry_Price": float(entry),
-        "SL": float(sl),
-        "TP": float(tp),
-        "Status": str(status),
-        "Profit_Loss_ZAR": float(pl)
-    }
+    new_row = {"Timestamp": datetime.now().strftime("%Y-%m-%d %H:%M"), "Asset": asset, "Type": "MANUAL", "Direction": direction, "Entry_Price": float(entry), "SL": float(sl), "TP": float(tp), "Status": status, "Profit_Loss_ZAR": float(pl)}
     df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
     df.to_csv(JOURNAL_FILE, index=False)
 
-# --- GLOBAL REFERENCE CONVERSIONS ---
 try:
     current_usdzar = float(yf.Ticker("USDZAR=X").history(period="1mo", interval="1d")['Close'].iloc[-1])
 except Exception:
@@ -168,7 +127,7 @@ try:
 except Exception:
     st.error("⚠️ Error loading live technical data feeds.")
 
-# ==================== TAB 1: TERMINAL SIGNALS MATRIX ====================
+# ==================== SHEET 1: TERMINAL SIGNALS MATRIX ====================
 with tab_matrix:
     st.markdown(f"### 📊 Active Vector Signal: {active_asset['name']}")
     if selected_ticker in analyzed_watchlist:
@@ -209,11 +168,39 @@ with tab_matrix:
             else:
                 st.success("✅ RISK APPROVED: Asset conditions match small account scaling metrics.")
 
-# ==================== TAB 2: BULLETIN SATELLITE NEWS DESK ====================
+# ==================== SHEET 2: IN-APP RE-ROUTED NEWS ====================
 with tab_news:
-    st.markdown(f"### 📰 Live Global News Feed ({active_asset['name']})")
-    live_items = fetch_live_rss_news()
-    
-    # TECHNIQUE SHIFT: Completely flat conditional execution to fully block indentation drops
-    has_news = len(live_items) > 0
-    
+    st.markdown("### 📰 Global News Desk")
+    if selected_ticker in analyzed_watchlist:
+        ticker_obj = analyzed_watchlist[selected_ticker]["ticker_obj"]
+        try:
+            news_items = ticker_obj.news
+            if news_items:
+                for item in news_items[:3]:
+                    st.markdown(f"📢 **{item.get('title')}**")
+                    st.caption(f"Source: {item.get('publisher')}")
+                    st.divider()
+            else:
+                st.info("🛰️ Monitoring active. Live trend streaming stable.")
+        except Exception:
+            st.info("Headline feed stream initializing. System active.")
+
+# ==================== SHEET 3: LEDGER JOURNAL WORKSPACE ====================
+with tab_journal:
+    st.header("📓 Personal Transaction Ledger")
+    with st.form("Manual Entry Ticket"):
+        st.subheader("➕ Record a Manual Trade")
+        c1, c2, c3 = st.columns(3)
+        with c1:
+            m_asset = st.selectbox("Select Asset Layout", [selected_ticker])
+            m_dir = st.selectbox("Direction", ["BUY", "SELL"])
+        with c2:
+            m_entry = st.number_input("Entry Price", value=0.0, format="%.5f")
+            m_sl = m_entry * 0.99
+            st.caption("Enter entries to log records")
+        with c3:
+            m_tp = m_entry * 1.02
+            m_pl = st.number_input("Closed P&L (ZAR Amount)", value=0.0)
+            
+        m_status = st.selectbox("Position State", ["OPEN", "CLOSED"])
+        if st.form_submit_button("💾 Commit Trade to Journal"):
