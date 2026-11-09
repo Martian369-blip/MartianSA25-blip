@@ -36,11 +36,10 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# ==================== EXACT MATCH SIDEBAR NAVIGATION CORE ====================
+# ==================== SIDEBAR NAVIGATION CORE ====================
 st.sidebar.title("🛸 MARS_BOT V16.0")
 st.sidebar.markdown("### ☰ MAIN CORE")
 
-# Your professional sidebar page selection layout mapping
 module_sheet = st.sidebar.radio(
     "CHOOSE MODULE SHEET:",
     options=["📊 TERMINAL SIGNALS", "📡 SATELLITE NEWS", "📋 LEDGER JOURNAL"]
@@ -71,7 +70,7 @@ market_options = {
     "^DJI":     {"name": "Wall Street 30 (Dow Jones)", "type": "INDEX"}
 }
 
-top_col1, top_col2 = st.columns([4, 1])
+top_col1, top_col2 = st.columns(2)
 with top_col1:
     selected_ticker = st.selectbox(
         "Choose Market Vector:",
@@ -166,7 +165,7 @@ try:
 except Exception:
     pass
 
-# ==================== PAGE ROUTING CONDITION BLOCK ====================
+# ==================== FLAT PAGE ROUTING CONDITIONS ====================
 
 # 🔘 MODULE 1: TERMINAL SIGNALS PAGE
 if "TERMINAL SIGNALS" in module_sheet:
@@ -215,4 +214,7 @@ if "TERMINAL SIGNALS" in module_sheet:
 if "SATELLITE NEWS" in module_sheet:
     st.markdown(f"## 📰 Embedded Intel Matrix: {active_asset['name']}")
     live_items = fetch_live_rss_news()
-    if not live_items:
+    
+    # Flattened conditional arrays to mathematically prevent nested indentation failures
+    has_no_news = len(live_items) == 0
+    if has_no_news:
