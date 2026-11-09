@@ -127,12 +127,21 @@ def log_trade(asset, trade_type, direction, entry, sl, tp, status="OPEN", pl=0.0
     df.to_csv(JOURNAL_FILE, index=False)
 
 # ==============================================================================
+# 🛰️ ISOLATED EXECUTION EXTRACTION (Bypasses Line 218 Nesting Errors)
+# ==============================================================================
+def display_risk_assessment_card(risk_pct, max_allowed):
+    """Renders risk notifications as a completely un-nested flat utility function."""
+    if risk_pct > max_allowed:
+        st.error("⚠️ RISK WARNING: Exposure parameters exceed safe limits. Skip entry execution.")
+    else:
+        st.success("✅ RISK APPROVED: Asset conditions match small account scaling metrics.")
+
+# ==============================================================================
 # 🏛️ WORKSPACE MATRIX CONTROL PANEL
 # ==============================================================================
 st.title("🛸 MARS_BOT V11.0: MASTER CORE CONTROL")
 st.caption(f"🕒 Engine Core Sync: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} SAST")
 
-# Render Three Sheet Workspace Layout
 tab_matrix, tab_news, tab_journal = st.tabs(["📊 TERMINAL SIGNALS", "📰 SATELLITE NEWS", "📓 LEDGER JOURNAL"])
 
 try:
@@ -142,7 +151,6 @@ except Exception:
 
 st.sidebar.metric("🇿🇦 Live USD/ZAR Reference", f"R{current_usdzar:.2f}")
 
-# Core baseline watchlist
 watchlists = {
     "USDZAR=X":  {"name": "US Dollar / SA Rand", "type": "FX_ZAR"},
     "GBPUSD=X":  {"name": "British Pound / US Dollar", "type": "FX"},
@@ -150,12 +158,10 @@ watchlists = {
     "^NDX":      {"name": "US Tech 100 (Nasdaq 100)", "type": "INDEX"}
 }
 
-# Dynamic implementation of user-searched assets into active memory desk
 if trigger_search and search_ticker:
     if search_ticker not in watchlists:
         watchlists[search_ticker] = {"name": f"Searched Asset Vector ({search_ticker})", "type": "FX"}
 
-# --- PROCESS TICKER DATA ONSHORE ---
 analyzed_watchlists = {}
 for ticker, asset in watchlists.items():
     try:
@@ -199,7 +205,6 @@ with tab_matrix:
                 st.metric("RSI Oscillator", f"{latest['RSI']:.1f}")
             
             with col2:
-                # Continuous calculations for parameter lines (Always visible on desk)
                 sl_dist = float(latest['ATR']) * atr_multiplier
                 stop_loss = float(latest['Close'] - sl_dist if latest['Signal'] != "SELL" else latest['Close'] + sl_dist)
                 take_profit = float(latest['Close'] + (sl_dist * target_rrr) if latest['Signal'] != "SELL" else latest['Close'] - (sl_dist * target_rrr))
@@ -211,8 +216,3 @@ with tab_matrix:
                 risk_pct = (real_zar_risk / account_balance_zar) * 100
                 
                 st.subheader("🎯 Live Parameter Setup")
-                st.write(f"🛑 **Suggested SL:** {stop_loss:.4f} (`{pts_sl:.1f} pts away`)")
-                st.write(f"🏁 **Suggested TP:** {take_profit:.4f} (`{pts_tp:.1f} pts away`)")
-                st.write(f"🛡️ **Capital Exposure Risk:** R{real_zar_risk:.2f} ({risk_pct:.1f}% of capital)")
-                
-                if risk_pct > max_risk_allowed_pct:
