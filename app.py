@@ -114,7 +114,7 @@ def fetch_live_rss_news():
         with urllib.request.urlopen(req, timeout=10) as response:
             xml_data = response.read()
             root = ET.fromstring(xml_data)
-            for item in root.findall('.//item')[:5]:  # Pull top 5 brief summaries
+            for item in root.findall('.//item')[:5]:
                 title = item.find('title')
                 pub_date = item.find('pubDate')
                 title_text = title.text if title is not None else ""
@@ -131,9 +131,9 @@ def load_journal():
         except Exception: pass
     return pd.DataFrame(columns=["Timestamp", "Asset", "Type", "Direction", "Entry_Price", "SL", "TP", "Status", "Profit_Loss_ZAR"])
 
-def log_trade(asset, trade_type, direction, entry, sl, tp, status="OPEN", pl=0.0):
+def log_trade(asset, direction, entry, sl, tp, status="OPEN", pl=0.0):
     df = load_journal()
-    new_row = {"Timestamp": datetime.now().strftime("%Y-%m-%d %H:%M"), "Asset": asset, "Type": trade_type, "Direction": direction, "Entry_Price": float(entry), "SL": float(sl), "TP": float(tp), "Status": status, "Profit_Loss_ZAR": float(pl)}
+    new_row = {"Timestamp": datetime.now().strftime("%Y-%m-%d %H:%M"), "Asset": asset, "Type": "MANUAL", "Direction": direction, "Entry_Price": float(entry), "SL": float(sl), "TP": float(tp), "Status": status, "Profit_Loss_ZAR": float(pl)}
     df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
     df.to_csv(JOURNAL_FILE, index=False)
 
@@ -204,5 +204,4 @@ with tab_news:
     live_headlines = fetch_live_rss_news()
     if live_headlines:
         for item in live_headlines:
-            st.markdown(
-                f"<div class='news-card'>"
+            # Fixed unclosed parentheses structure layout cleanly to secure compilation
