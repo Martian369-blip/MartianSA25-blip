@@ -10,17 +10,15 @@ from datetime import datetime
 # ==============================================================================
 # 🛰️ RESILIENT MULTI-FILE ARCHITECTURE INTERLOCK (DYNAMIC IMPORT LAYER)
 # ==============================================================================
-# We try to import your separate files. If a syntax error happens during sync, 
-# the bot isolates it and injects local fallback handlers to prevent app crashes.
 try:
     import design_theme as theme
     import research_engine as engine
     modules_imported = True
 except (ImportError, SyntaxError) as e:
     modules_imported = False
-    st.sidebar.warning(f"⚠️ Core Engine Module Syncing... Using Standby Architecture Core.")
+    st.sidebar.warning("⚠️ Core Engine Module Syncing... Using Standby Architecture Core.")
 
-# --- STANDBY BACKUP LOGIC INJECTORS (Runs only if files are unreadable) ---
+# --- STANDBY BACKUP LOGIC INJECTORS (Runs only if modular files are unreadable) ---
 JOURNAL_FILE = "trading_journal.csv"
 
 def backup_compile_market_signals(df_d, df_h):
@@ -67,13 +65,11 @@ def backup_log_trade(asset, trade_type, direction, entry, sl, tp, status="OPEN",
 # ==============================================================================
 st.set_page_config(page_title="MARS_BOT V10.0 Desk", page_icon="🛸", layout="wide")
 
-# Apply styling custom css injections safely
 st.markdown("<style>.stTabs [data-baseweb='tab'] { padding: 10px 20px; }</style>", unsafe_allow_html=True)
 
 st.title("🛸 MARS_BOT V10.0: MASTER ANALYSIS DESK")
 st.caption(f"🕒 Engine Core Synchronization: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} SAST")
 
-# Multi-file fallback configuration bindings
 if modules_imported:
     account_balance_zar, max_risk_allowed_pct = theme.render_small_account_header(balance=500.00, risk_pct=5.0)
 else:
@@ -108,7 +104,6 @@ with tab_matrix:
             
             if df_d.empty or df_h.empty: continue
             
-            # Use separate module if syntax is clean, else use fast standby backup
             if modules_imported:
                 df_analyzed = engine.compile_market_signals(df_d, df_h)
             else:
@@ -184,3 +179,7 @@ with tab_journal:
         st.dataframe(journal_df, use_container_width=True)
         closed_trades = journal_df[journal_df['Status'] == "CLOSED"]
         if not closed_trades.empty:
+            total_win = len(closed_trades[closed_trades['Profit_Loss_ZAR'] > 0])
+            win_rate = (total_win / len(closed_trades)) * 100
+            st.metric("Win Rate Profile", f"{win_rate:.1f}%", f"Total Net return: R{closed_trades['Profit_Loss_ZAR'].sum():.2f}")
+    else:
