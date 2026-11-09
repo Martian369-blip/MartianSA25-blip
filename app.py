@@ -14,15 +14,13 @@ try:
 except (ImportError, SyntaxError):
     modules_ready = False
 
-# --- visual state layout engine configuration ---
-st.set_page_config(page_title="MARS_BOT V11.6 Desk", page_icon="🛸", layout="wide")
+# --- Visual State Engine Configuration ---
+st.set_page_config(page_title="MARS_BOT V12.0 Desk", page_icon="🛸", layout="wide")
 
+# Persistent Session State Storage Core
 if "watchlists" not in st.session_state:
     st.session_state.watchlists = {
-        "USDZAR=X":  {"name": "US Dollar / SA Rand", "type": "FX_ZAR"},
-        "GBPUSD=X":  {"name": "British Pound / US Dollar", "type": "FX"},
-        "GC=F":      {"name": "Gold Ounce Futures", "type": "COMMODITY"},
-        "^NDX":      {"name": "US Tech 100 (Nasdaq 100)", "type": "INDEX"}
+        "USDZAR=X": {"name": "US Dollar / SA Rand", "type": "FX_ZAR"}
     }
 
 st.markdown("""
@@ -39,26 +37,37 @@ st.sidebar.markdown("### 🛡️ Capital Defense Deck")
 account_balance_zar = st.sidebar.number_input("Wallet Capital Base (ZAR)", min_value=10.0, value=500.00, step=50.0)
 max_risk_allowed_pct = st.sidebar.slider("Maximum Trade Allocation Risk (%)", 1.0, 10.0, 5.0)
 
-st.sidebar.markdown("### 🔍 FX Market Search Engine")
-search_ticker = st.sidebar.text_input("Enter Ticker Symbol:", value="").strip().upper()
+st.sidebar.markdown("### 🔍 Global Market Search Engine")
+st.sidebar.caption("Type any symbol: e.g., EURUSD=X, GBPUSD=X, GC=F, BTC-USD, ^NDX")
+search_ticker = st.sidebar.text_input("Enter Active Ticker Symbol:", value="").strip().upper()
+
+# Core Functional Trigger for Adding More Searched Markets Safely
 if st.sidebar.button("⚡ Scan Asset Vector") and search_ticker:
-    # AUTOMATED TYPOLOGY INFERENCE LAYER: Dynamically categorizes target pair logic rules
     if "ZAR" in search_ticker:
         determined_type = "FX_ZAR"
+        friendly_name = f"US Dollar / SA Rand Cross ({search_ticker})" if "USD" in search_ticker else f"Rand Currency Pair ({search_ticker})"
     elif "=" in search_ticker:
         determined_type = "FX"
-    elif "GC" in search_ticker:
+        friendly_name = f"Global FX Contract ({search_ticker})"
+    elif "GC" in search_ticker or "=F" in search_ticker:
         determined_type = "COMMODITY"
-    else:
+        friendly_name = f"Commodity Futures Vector ({search_ticker})"
+    elif "^" in search_ticker:
         determined_type = "INDEX"
+        friendly_name = f"Global Stock Market Index ({search_ticker})"
+    else:
+        determined_type = "EQUITY"
+        friendly_name = f"Public Equity Stock Asset ({search_ticker})"
         
-    st.session_state.watchlists[search_ticker] = {
-        "name": f"Asset Vector Allocation ({search_ticker})", 
-        "type": determined_type
-    }
-    st.sidebar.success(f"🎯 Vector Locked on {search_ticker}")
+    # Append the newly searched market cleanly into active state memory list
+    st.session_state.watchlists[search_ticker] = {"name": friendly_name, "type": determined_type}
+    st.sidebar.success(f"🎯 Linked {search_ticker} to Active Desk Matrix!")
 
-# ==================== ANALYTICS & MATH SCANNING cores ====================
+# Button to let you clear out the list and start fresh with a single search
+if st.sidebar.button("🗑️ Reset Workspace Matrix"):
+    st.session_state.watchlists = {"USDZAR=X": {"name": "US Dollar / SA Rand", "type": "FX_ZAR"}}
+    st.rerun()
+
 def compile_market_signals(df_d, df_h):
     df_h = df_h.copy()
     close_series = pd.Series(df_h['Close'].values.flatten())
@@ -75,7 +84,6 @@ def compile_market_signals(df_d, df_h):
         ema = df_h['EMA_200'].iloc[i]
         hist = df_h['MACD_Hist'].iloc[i]
         
-        # Adaptive scanning configuration triggers
         if (rsi < 45 or hist > 0) and (price > ema):
             df_h.loc[df_h.index[i], 'Signal'] = "BUY"
         elif (rsi > 55 or hist < 0) and (price < ema):
@@ -98,7 +106,7 @@ st.sidebar.metric("🇿🇦 Live USD/ZAR Reference", f"R{current_usdzar:.2f}")
 
 tab_matrix, tab_news, tab_journal = st.tabs(["📊 TERMINAL SIGNALS", "📰 SATELLITE NEWS", "📓 LEDGER JOURNAL"])
 
-# Clean validation scanner mapping pipeline
+# Data Processing Framework
 analyzed_watchlists = {}
 for ticker, asset in st.session_state.watchlists.items():
     try:
@@ -106,56 +114,48 @@ for ticker, asset in st.session_state.watchlists.items():
         df_d = feed.history(period="3mo", interval="1d")
         df_h = feed.history(period="1mo", interval="1h")
         if not df_d.empty and not df_h.empty:
-            analyzed_watchlists[ticker] = {
-                "asset": asset, 
-                "df": compile_market_signals(df_d, df_h), 
-                "ticker_obj": feed
-            }
-    except Exception:
-        continue
+            analyzed_watchlists[ticker] = {"asset": asset, "df": compile_market_signals(df_d, df_h), "ticker_obj": feed}
+    except Exception: continue
 
 # ==================== SHEET 1: TERMINAL SIGNALS MATRIX ====================
 with tab_matrix:
     st.markdown("### 📊 Active Vector Signals Matrix")
-    if not analyzed_watchlists:
-        st.info("Gathering asset vectors... Please ensure valid symbols are requested.")
-    else:
-        for ticker, data in analyzed_watchlists.items():
-            asset, df_analyzed = data["asset"], data["df"]
-            latest = df_analyzed.iloc[-1]
-            signal_text = "⏳ HOLD" if latest['Signal'] == "HOLD" else f"🔥 {latest['Signal']}"
-            
-            with st.expander(f"📦 {asset['name']} ({ticker}) — Status: {signal_text}"):
-                st.plotly_chart(draw_advanced_chart(df_analyzed, asset['name']), use_container_width=True)
-                col1, col2 = st.columns(2)
-                with col1:
-                    st.metric("Spot Price", f"R{latest['Close']:.4f}" if "ZAR" in ticker else f"${latest['Close']:.4f}" if asset["type"] == "FX" else f"${latest['Close']:.2f}")
-                    st.metric("RSI Oscillator", f"{latest['RSI']:.1f}")
-                with col2:
-                    sl_dist = float(latest['ATR']) * 2.0
-                    stop_loss = float(latest['Close'] - sl_dist if latest['Signal'] != "SELL" else latest['Close'] + sl_dist)
-                    take_profit = float(latest['Close'] + (sl_dist * 2.0) if latest['Signal'] != "SELL" else latest['Close'] - (sl_dist * 2.0))
-                    mult = 10000 if asset["type"] in ["FX_ZAR", "FX"] else 1
-                    pts_sl = abs(latest['Close'] - stop_loss) * mult
+    for ticker, data in analyzed_watchlists.items():
+        asset, df_analyzed = data["asset"], data["df"]
+        latest = df_analyzed.iloc[-1]
+        signal_text = "⏳ HOLD" if latest['Signal'] == "HOLD" else f"🔥 {latest['Signal']}"
+        
+        with st.expander(f"📦 {asset['name']} — Status: {signal_text}"):
+            st.plotly_chart(draw_advanced_chart(df_analyzed, asset['name']), use_container_width=True)
+            col1, col2 = st.columns(2)
+            with col1:
+                st.metric("Active Price Spot", f"R{latest['Close']:.4f}" if "ZAR" in ticker else f"${latest['Close']:.4f}" if asset["type"] == "FX" else f"${latest['Close']:.2f}")
+                st.metric("RSI Oscillator", f"{latest['RSI']:.1f}")
+            with col2:
+                sl_dist = float(latest['ATR']) * 2.0
+                stop_loss = float(latest['Close'] - sl_dist if latest['Signal'] != "SELL" else latest['Close'] + sl_dist)
+                take_profit = float(latest['Close'] + (sl_dist * 2.0) if latest['Signal'] != "SELL" else latest['Close'] - (sl_dist * 2.0))
+                mult = 10000 if asset["type"] in ["FX_ZAR", "FX"] else 1
+                pts_sl = abs(latest['Close'] - stop_loss) * mult
+                
+                if asset["type"] == "FX_ZAR":
+                    real_zar_risk = pts_sl * 0.10
+                elif asset["type"] == "FX":
+                    real_zar_risk = (pts_sl * 0.01) * current_usdzar
+                else:
+                    real_zar_risk = (pts_sl * 0.10) * current_usdzar
                     
-                    if asset["type"] == "FX_ZAR":
-                        real_zar_risk = pts_sl * 0.10
-                    elif asset["type"] == "FX":
-                        real_zar_risk = (pts_sl * 0.01) * current_usdzar
-                    else:
-                        real_zar_risk = (pts_sl * 0.10) * current_usdzar
-                        
-                    risk_pct = (real_zar_risk / account_balance_zar) * 100
-                    
-                    st.subheader("🎯 Live Parameter Setup")
-                    st.write(f"🛑 **Suggested SL:** {stop_loss:.4f} (`{pts_sl:.1f} pts away`)")
-                    st.write(f"🏁 **Suggested TP:** {take_profit:.4f}")
-                    st.write(f"🛡️ **Capital Exposure Risk:** R{real_zar_risk:.2f} ({risk_pct:.1f}% of capital)")
-                    
-                    if risk_pct > max_risk_allowed_pct:
-                        st.error("⚠️ RISK WARNING: Exposure parameters exceed safe limits. Skip entry execution.")
-                    else:
-                        st.success("✅ RISK APPROVED: Asset conditions match small account scaling metrics.")
+                risk_pct = (real_zar_risk / account_balance_zar) * 100
+                
+                st.subheader("🎯 Live Parameter Setup")
+                st.write(f"🛑 **Suggested SL Price:** {stop_loss:.4f} (`{pts_sl:.1f} pts away`)")
+                st.write(f"🏁 **Suggested TP Price:** {take_profit:.4f}")
+                st.write(f"🛡️ **Capital Exposure Risk:** R{real_zar_risk:.2f} ({risk_pct:.1f}% of capital)")
+                
+                if risk_pct > max_risk_allowed_pct:
+                    st.error("⚠️ RISK WARNING: Exposure parameters exceed safe limits. Skip entry execution.")
+                else:
+                    st.success("✅ RISK APPROVED: Asset conditions match small account scaling metrics.")
 
 # ==================== SHEET 2: LINKED SATELLITE MODULE ====================
 with tab_news:
