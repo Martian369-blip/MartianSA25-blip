@@ -9,7 +9,7 @@ import xml.etree.ElementTree as ET
 import plotly.graph_objects as go
 from datetime import datetime
 
-# --- SYSTEM SYSTEM LEVEL INITIALIZATION MATRIX ---
+# --- SYSTEM INITIALIZATION MATRIX ---
 st.set_page_config(page_title="MARS_BOT V12.0 Desk", page_icon="🛸", layout="wide")
 
 JOURNAL_FILE = "trading_journal.csv"
@@ -47,7 +47,7 @@ st.sidebar.markdown("### 🛡️ Capital Defense Deck")
 account_balance_zar = st.sidebar.number_input("Wallet Capital Base (ZAR)", min_value=10.0, value=500.00, step=50.0)
 max_risk_allowed_pct = st.sidebar.slider("Maximum Trade Allocation Risk (%)", 1.0, 10.0, 5.0)
 
-# ==================== MASTER COMPREHENSIVE MARKET CATALOG ====================
+# ==================== COMPREHENSIVE MARKET CATALOG ====================
 st.sidebar.markdown("### 🌐 Asset Hub Selector")
 
 market_options = {
@@ -77,7 +77,7 @@ selected_ticker = st.sidebar.selectbox(
 
 active_asset = market_options[selected_ticker]
 
-# ==================== DATA ARCHITECTURE COMPILATION LAYER ====================
+# ==================== DATA ARCHITECTURE LAYER ====================
 def compile_market_signals(df_d, df_h):
     df_h = df_h.copy()
     close_series = pd.Series(df_h['Close'].values.flatten())
@@ -148,7 +148,7 @@ def log_trade(asset, direction, entry, sl, tp, status, pl):
     df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
     df.to_csv(JOURNAL_FILE, index=False)
 
-# --- GLOBAL MACRO REFERENCE CROSS STREAMS ---
+# --- GLOBAL REFERENCE CONVERSIONS ---
 try:
     current_usdzar = float(yf.Ticker("USDZAR=X").history(period="1mo", interval="1d")['Close'].iloc[-1])
 except Exception:
@@ -157,7 +157,7 @@ st.sidebar.metric("🇿🇦 Live USD/ZAR Reference", f"R{current_usdzar:.2f}")
 
 tab_matrix, tab_news, tab_journal = st.tabs(["📊 TERMINAL SIGNALS", "📰 SATELLITE NEWS", "📓 LEDGER JOURNAL"])
 
-# Isolate structural market data arrays
+# Fetch data exclusively for the chosen dropdown asset
 analyzed_watchlist = {}
 try:
     feed = yf.Ticker(selected_ticker)
@@ -214,6 +214,6 @@ with tab_news:
     st.markdown(f"### 📰 Live Global News Feed ({active_asset['name']})")
     live_items = fetch_live_rss_news()
     
-    if not live_items:
-        st.info("🛰️ Broad baseline transmission stable. Monitoring global feeds.")
-    else:
+    # TECHNIQUE SHIFT: Completely flat conditional execution to fully block indentation drops
+    has_news = len(live_items) > 0
+    
