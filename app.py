@@ -6,7 +6,6 @@ import ta
 import plotly.graph_objects as go
 from datetime import datetime
 
-# --- CONNECT DEEP INTO SPECIALIZED MULTI-FILE TECHNIQUE MODULES ---
 try:
     import satellite_news as news
     import ledger_journal as journal
@@ -14,7 +13,6 @@ try:
 except (ImportError, SyntaxError):
     modules_ready = False
 
-# --- Visual State Engine Configuration ---
 st.set_page_config(page_title="MARS_BOT V12.5 Desk", page_icon="🛸", layout="wide")
 
 st.markdown("""
@@ -27,45 +25,67 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# Lateral Workspace Sidebar Controller
 st.sidebar.markdown("### 🛡️ Capital Defense Deck")
 account_balance_zar = st.sidebar.number_input("Wallet Capital Base (ZAR)", min_value=10.0, value=500.00, step=50.0)
 max_risk_allowed_pct = st.sidebar.slider("Maximum Trade Allocation Risk (%)", 1.0, 10.0, 5.0)
 
-# ==================== MASTER COMPREHENSIVE MARKET DROPDOWN ====================
+# ==================== THE EXPANDED 30+ GLOBAL MARKET CATALOG ====================
 st.sidebar.markdown("### 🌐 Asset Hub Selector")
 
-# Fully pre-loaded list of all key markets for easy manual switching
 market_options = {
+    # 🇿🇦 South African Currency Crosses (Forex Majors)
     "USDZAR=X": {"name": "US Dollar / SA Rand", "type": "FX_ZAR"},
+    "EURZAR=X": {"name": "Euro / SA Rand Cross", "type": "FX_ZAR"},
+    "GBPZAR=X": {"name": "British Pound / SA Rand Cross", "type": "FX_ZAR"},
+    "AUDZAR=X": {"name": "Australian Dollar / SA Rand", "type": "FX_ZAR"},
+    "JPYZAR=X": {"name": "Japanese Yen / SA Rand Cross", "type": "FX_ZAR"},
+    
+    # 🌍 Global Forex Majors
     "GBPUSD=X": {"name": "British Pound / US Dollar", "type": "FX"},
     "EURUSD=X": {"name": "Euro / US Dollar", "type": "FX"},
     "USDJPY=X": {"name": "US Dollar / Japanese Yen", "type": "FX"},
     "AUDUSD=X": {"name": "Australian Dollar / US Dollar", "type": "FX"},
-    "EURZAR=X": {"name": "Euro / SA Rand Cross", "type": "FX_ZAR"},
-    "GBPZAR=X": {"name": "British Pound / SA Rand Cross", "type": "FX_ZAR"},
+    "USDCAD=X": {"name": "US Dollar / Canadian Dollar", "type": "FX"},
+    
+    # 🛢️ Expanded Global Commodities Suite
     "GC=F":     {"name": "Gold Ounce Futures", "type": "COMMODITY"},
-    "SOL.JO":   {"name": "Sasol Limited (JSE Shares)", "type": "EQUITY"},
-    "FSR.JO":   {"name": "FirstRand Bank (JSE Shares)", "type": "EQUITY"},
+    "SI=F":     {"name": "Silver Ounce Futures", "type": "COMMODITY"},
+    "CL=F":     {"name": "Crude Oil (WTI Futures)", "type": "COMMODITY"},
+    "BZ=F":     {"name": "Brent Crude Oil Futures", "type": "COMMODITY"},
+    "PL=F":     {"name": "Platinum Futures", "type": "COMMODITY"},
+    "HG=F":     {"name": "Copper Futures", "type": "COMMODITY"},
+    "NG=F":     {"name": "Natural Gas Futures", "type": "COMMODITY"},
+    
+    # 🇿🇦 Johannesburg Stock Exchange (JSE Leaders)
+    "SOL.JO":   {"name": "Sasol Limited (JSE)", "type": "EQUITY"},
+    "FSR.JO":   {"name": "FirstRand Bank (JSE)", "type": "EQUITY"},
     "SBK.JO":   {"name": "Standard Bank Group (JSE)", "type": "EQUITY"},
+    "ANG.JO":   {"name": "Anglogold Ashanti (JSE)", "type": "EQUITY"},
+    "IMP.JO":   {"name": "Impala Platinum (JSE)", "type": "EQUITY"},
+    
+    # 🇺🇸 Wall Street Blue Chips & Crypto
     "AAPL":     {"name": "Apple Inc. (Wall Street)", "type": "EQUITY"},
     "NVDA":     {"name": "NVIDIA Corp (Wall Street)", "type": "EQUITY"},
+    "TSLA":     {"name": "Tesla Motors (Wall Street)", "type": "EQUITY"},
     "BTC-USD":  {"name": "Bitcoin / US Dollar", "type": "EQUITY"},
+    "ETH-USD":  {"name": "Ethereum / US Dollar", "type": "EQUITY"},
+    
+    # 📉 Macro Stock Indices
     "^NDX":     {"name": "US Tech 100 (Nasdaq)", "type": "INDEX"},
-    "^DJI":     {"name": "Wall Street 30 (Dow Jones)", "type": "INDEX"}
+    "^DJI":     {"name": "Wall Street 30 (Dow Jones)", "type": "INDEX"},
+    "^GSPC":    {"name": "S&P 500 Index (US Market)", "type": "INDEX"},
+    "^J203.JO": {"name": "JSE All Share Index (SA)", "type": "INDEX"}
 }
 
-# The requested clean dropdown menu
 selected_ticker = st.sidebar.selectbox(
     "Choose Market Vector to Analyze:",
     options=list(market_options.keys()),
     format_func=lambda x: f"{market_options[x]['name']} ({x})"
 )
 
-# Extract parameters for the chosen single market vector
 active_asset = market_options[selected_ticker]
 
-# ==================== ANALYTICS & MATH SCANNING CORES ====================
+# ==================== ANALYTICS PROCESSING NODES ====================
 def compile_market_signals(df_d, df_h):
     df_h = df_h.copy()
     close_series = pd.Series(df_h['Close'].values.flatten())
@@ -78,13 +98,9 @@ def compile_market_signals(df_d, df_h):
     for i in range(len(df_h)):
         if i < 200: continue
         price = float(close_series.iloc[i])
-        rsi = df_h['RSI'].iloc[i]
-        ema = df_h['EMA_200'].iloc[i]
-        hist = df_h['MACD_Hist'].iloc[i]
-        
-        if (rsi < 45 or hist > 0) and (price > ema):
+        if (df_h['RSI'].iloc[i] < 45 or df_h['MACD_Hist'].iloc[i] > 0) and (price > df_h['EMA_200'].iloc[i]):
             df_h.loc[df_h.index[i], 'Signal'] = "BUY"
-        elif (rsi > 55 or hist < 0) and (price < ema):
+        elif (df_h['RSI'].iloc[i] > 55 or df_h['MACD_Hist'].iloc[i] < 0) and (price < df_h['EMA_200'].iloc[i]):
             df_h.loc[df_h.index[i], 'Signal'] = "SELL"
     return df_h
 
@@ -104,18 +120,13 @@ st.sidebar.metric("🇿🇦 Live USD/ZAR Reference", f"R{current_usdzar:.2f}")
 
 tab_matrix, tab_news, tab_journal = st.tabs(["📊 TERMINAL SIGNALS", "📰 SATELLITE NEWS", "📓 LEDGER JOURNAL"])
 
-# Fetch data exclusively for the chosen dropdown asset
 analyzed_watchlist = {}
 try:
     feed = yf.Ticker(selected_ticker)
     df_d = feed.history(period="3mo", interval="1d")
     df_h = feed.history(period="1mo", interval="1h")
     if not df_d.empty and not df_h.empty:
-        analyzed_watchlist[selected_ticker] = {
-            "asset": active_asset, 
-            "df": compile_market_signals(df_d, df_h), 
-            "ticker_obj": feed
-        }
+        analyzed_watchlist[selected_ticker] = {"asset": active_asset, "df": compile_market_signals(df_d, df_h), "ticker_obj": feed}
 except Exception:
     st.error("⚠️ Error loading live technical data feeds.")
 
@@ -124,13 +135,11 @@ with tab_matrix:
     st.markdown(f"### 📊 Active Vector Signal: {active_asset['name']}")
     if selected_ticker in analyzed_watchlist:
         data = analyzed_watchlist[selected_ticker]
-        df_analyzed = data["df"]
-        latest = df_analyzed.iloc[-1]
+        df_analyzed, latest = data["df"], data["df"].iloc[-1]
         signal_text = "⏳ HOLD" if latest['Signal'] == "HOLD" else f"🔥 {latest['Signal']}"
         
         st.markdown(f"**Current Status Horizon:** {signal_text}")
-        chart_fig = draw_advanced_chart(df_analyzed, active_asset['name'])
-        st.plotly_chart(chart_fig, use_container_width=True)
+        st.plotly_chart(draw_advanced_chart(df_analyzed, active_asset['name']), use_container_width=True)
         
         col1, col2 = st.columns(2)
         with col1:
@@ -143,11 +152,8 @@ with tab_matrix:
             mult = 10000 if active_asset["type"] in ["FX_ZAR", "FX"] else 1
             pts_sl = abs(latest['Close'] - stop_loss) * mult
             
-            if active_asset["type"] == "FX_ZAR":
+            if active_asset["type"] == "FX_ZAR" or ".JO" in selected_ticker:
                 real_zar_risk = pts_sl * 0.10
-            elif ".JO" in selected_ticker:
-                # JSE Equity: 0.01 standard contract size risks R1.00 per point move usually
-                real_zar_risk = pts_sl * 0.10 
             elif active_asset["type"] == "FX":
                 real_zar_risk = (pts_sl * 0.01) * current_usdzar
             else:
@@ -175,7 +181,6 @@ with tab_news:
 # ==================== SHEET 3: LINKED LEDGER MODULE ====================
 with tab_journal:
     if modules_ready:
-        # Create a single asset context map for the ledger drop-down select option
         ledger_map = {selected_ticker: active_asset}
         journal.render_journal_tab(ledger_map, current_usdzar)
     else:
