@@ -9,12 +9,12 @@ import xml.etree.ElementTree as ET
 import plotly.graph_objects as go
 from datetime import datetime
 
-# --- SYSTEM INITIALIZATION HUB ---
-st.set_page_config(page_title="MARS_BOT V12.5 Desk", page_icon="🛸", layout="wide")
+# --- SYSTEM SYSTEM LEVEL INITIALIZATION MATRIX ---
+st.set_page_config(page_title="MARS_BOT V16.0 Desk", page_icon="🛸", layout="wide")
 
 JOURNAL_FILE = "trading_journal.csv"
 
-# ==================== ADVANCED VISUAL THEME ENGINE ====================
+# ==================== NATIVE THEME LAYER INJECTIONS ====================
 st.markdown("""
     <style>
     .metric-card {
@@ -33,23 +33,25 @@ st.markdown("""
         margin-bottom: 10px;
         color: white;
     }
-    .stTabs [data-baseweb="tab-list"] { gap: 4px; }
-    .stTabs [data-baseweb="tab"] {
-        background-color: #121620;
-        border: 1px solid #232936;
-        padding: 8px 16px;
-    }
     </style>
 """, unsafe_allow_html=True)
 
-# Lateral Workspace Sidebar Controller
+# ==================== EXACT MATCH SIDEBAR NAVIGATION CORE ====================
+st.sidebar.title("🛸 MARS_BOT V16.0")
+st.sidebar.markdown("### ☰ MAIN CORE")
+
+# Your professional sidebar page selection layout mapping
+module_sheet = st.sidebar.radio(
+    "CHOOSE MODULE SHEET:",
+    options=["📊 TERMINAL SIGNALS", "📡 SATELLITE NEWS", "📋 LEDGER JOURNAL"]
+)
+
+st.sidebar.markdown("---")
 st.sidebar.markdown("### 🛡️ Capital Defense Deck")
 account_balance_zar = st.sidebar.number_input("Wallet Capital Base (ZAR)", min_value=10.0, value=1000.00, step=50.0)
 max_risk_allowed_pct = st.sidebar.slider("Maximum Trade Allocation Risk (%)", 1.0, 10.0, 5.0)
 
-# ==================== MASTER COMPREHENSIVE MARKET DROPDOWN ====================
-st.sidebar.markdown("### 🌐 Asset Hub Selector")
-
+# ==================== TOP BAR MARKET SELECTION CORE ====================
 market_options = {
     "USDZAR=X": {"name": "US Dollar / SA Rand", "type": "FX_ZAR"},
     "GBPUSD=X": {"name": "British Pound / US Dollar", "type": "FX"},
@@ -69,15 +71,20 @@ market_options = {
     "^DJI":     {"name": "Wall Street 30 (Dow Jones)", "type": "INDEX"}
 }
 
-selected_ticker = st.sidebar.selectbox(
-    "Choose Market Vector to Analyze:",
-    options=list(market_options.keys()),
-    format_func=lambda x: f"{market_options[x]['name']} ({x})"
-)
+top_col1, top_col2 = st.columns([4, 1])
+with top_col1:
+    selected_ticker = st.selectbox(
+        "Choose Market Vector:",
+        options=list(market_options.keys()),
+        format_func=lambda x: f"{market_options[x]['name']} ({x})",
+        label_visibility="collapsed"
+    )
+with top_col2:
+    scan_triggered = st.button("⚡ SCAN", use_container_width=True)
 
 active_asset = market_options[selected_ticker]
 
-# ==================== ANALYTICS & MATH SCANNING CORES ====================
+# ==================== ENGINE CALCULATION PIPELINES ====================
 def compile_market_signals(df_d, df_h):
     df_h = df_h.copy()
     close_series = pd.Series(df_h['Close'].values.flatten())
@@ -136,25 +143,18 @@ def log_trade(asset, direction, entry, sl, tp, status, pl):
     df = load_journal()
     new_row = {
         "Timestamp": datetime.now().strftime("%Y-%m-%d %H:%M"),
-        "Asset": str(asset),
-        "Type": "MANUAL",
-        "Direction": str(direction),
-        "Entry_Price": float(entry),
-        "SL": float(sl),
-        "TP": float(tp),
-        "Status": str(status),
-        "Profit_Loss_ZAR": float(pl)
+        "Asset": str(asset), "Type": "MANUAL", "Direction": str(direction),
+        "Entry_Price": float(entry), "SL": float(sl), "TP": float(tp),
+        "Status": str(status), "Profit_Loss_ZAR": float(pl)
     }
     df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
     df.to_csv(JOURNAL_FILE, index=False)
 
+# --- REFERENCE LOGIC CORE ---
 try:
     current_usdzar = float(yf.Ticker("USDZAR=X").history(period="1mo", interval="1d")['Close'].iloc[-1])
 except Exception:
     current_usdzar = 18.35
-st.sidebar.metric("🇿🇦 Live USD/ZAR Reference", f"R{current_usdzar:.2f}")
-
-tab_matrix, tab_news, tab_journal = st.tabs(["📊 TERMINAL SIGNALS", "📰 SATELLITE NEWS", "📓 LEDGER JOURNAL"])
 
 analyzed_watchlist = {}
 try:
@@ -164,11 +164,13 @@ try:
     if not df_d.empty and not df_h.empty:
         analyzed_watchlist[selected_ticker] = {"asset": active_asset, "df": compile_market_signals(df_d, df_h), "ticker_obj": feed}
 except Exception:
-    st.error("⚠️ Error loading live technical data feeds.")
+    pass
 
-# ==================== TAB 1: TERMINAL SIGNALS MATRIX ====================
-with tab_matrix:
-    st.markdown(f"### 📊 Active Vector Signal: {active_asset['name']}")
+# ==================== PAGE ROUTING CONDITION BLOCK ====================
+
+# 🔘 MODULE 1: TERMINAL SIGNALS PAGE
+if "TERMINAL SIGNALS" in module_sheet:
+    st.markdown(f"## 📊 Embedded Intel Matrix: {active_asset['name']}")
     if selected_ticker in analyzed_watchlist:
         data = analyzed_watchlist[selected_ticker]
         df_analyzed, latest = data["df"], data["df"].iloc[-1]
@@ -188,28 +190,29 @@ with tab_matrix:
             mult = 10000 if active_asset["type"] in ["FX_ZAR", "FX"] else 1
             pts_sl = abs(latest['Close'] - stop_loss) * mult
             
-            # --- HIGH INTUITION OMNI-EXPOSURE INTERLOCK MATRICES ---
             if active_asset["type"] == "FX_ZAR" or ".JO" in selected_ticker:
                 real_zar_risk = pts_sl * 0.10
             elif active_asset["type"] == "FX":
                 real_zar_risk = (pts_sl * 0.01) * current_usdzar
             elif selected_ticker == "GC=F":
-                real_zar_risk = pts_sl * 1.00 * current_usdzar # Full Standard 100oz contract calculation injection
+                real_zar_risk = pts_sl * 1.00 * current_usdzar
             else:
                 real_zar_risk = (pts_sl * 0.05) * current_usdzar
                 
             risk_pct = (real_zar_risk / account_balance_zar) * 100
             
             st.subheader("🎯 Live Parameter Setup")
-            st.write(f"🛑 **Suggested SL Price:** {stop_loss:.4f} (`{pts_sl:.1f} pts away`)")
-            st.write(f"🏁 **Suggested TP Price:** {take_profit:.4f}")
+            st.write(f"🛑 **Suggested SL:** {stop_loss:.4f} (`{pts_sl:.1f} pts away`)")
+            st.write(f"🏁 **Suggested TP:** {take_profit:.4f}")
             st.write(f"🛡️ **Capital Exposure Risk:** R{real_zar_risk:.2f} ({risk_pct:.1f}% of capital)")
             
-            # Flat structural layout evaluation nodes
-            has_failed_risk = risk_pct > max_risk_allowed_pct
-            if has_failed_risk:
+            if risk_pct > max_risk_allowed_pct:
                 st.error("⚠️ RISK WARNING: Exposure parameters exceed safe limits. Skip entry execution.")
-            if not has_failed_risk:
-                st.success("✅ RISK APPROVED: Asset conditions match small account scaling metrics.")
+            else:
+                st.success("✅ RISK APPROVED: Sizing parameters safe.")
 
-# ==================== TAB 2: BULLETIN SATELLITE NEWS DESK ====================
+# 🔘 MODULE 2: SATELLITE NEWS PAGE
+if "SATELLITE NEWS" in module_sheet:
+    st.markdown(f"## 📰 Embedded Intel Matrix: {active_asset['name']}")
+    live_items = fetch_live_rss_news()
+    if not live_items:
