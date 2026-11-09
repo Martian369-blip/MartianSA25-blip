@@ -9,12 +9,12 @@ import xml.etree.ElementTree as ET
 import plotly.graph_objects as go
 from datetime import datetime
 
-# --- SYSTEM SYSTEM LEVEL INITIALIZATION MATRIX ---
+# --- SYSTEM INITIALIZATION MATRIX ---
 st.set_page_config(page_title="MARS_BOT V16.0 Desk", page_icon="🛸", layout="wide")
 
 JOURNAL_FILE = "trading_journal.csv"
 
-# ==================== NATIVE THEME LAYER INJECTIONS ====================
+# ==================== ADVANCED VISUAL THEME ENGINE ====================
 st.markdown("""
     <style>
     .metric-card {
@@ -36,13 +36,13 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# ==================== SIDEBAR NAVIGATION CORE ====================
+# ==================== SIDEBAR CONTROL PANEL ====================
 st.sidebar.title("🛸 MARS_BOT V16.0")
 st.sidebar.markdown("### ☰ MAIN CORE")
 
 module_sheet = st.sidebar.radio(
     "CHOOSE MODULE SHEET:",
-    options=["TERMINAL SIGNALS", "SATELLITE NEWS", "LEDGER JOURNAL"]
+    options=["📊 TERMINAL SIGNALS", "📡 SATELLITE NEWS", "📋 LEDGER JOURNAL"]
 )
 
 st.sidebar.markdown("---")
@@ -50,40 +50,65 @@ st.sidebar.markdown("### 🛡️ Capital Defense Deck")
 account_balance_zar = st.sidebar.number_input("Wallet Capital Base (ZAR)", min_value=10.0, value=1000.00, step=50.0)
 max_risk_allowed_pct = st.sidebar.slider("Maximum Trade Allocation Risk (%)", 1.0, 10.0, 5.0)
 
-# ==================== TOP BAR MARKET SELECTION CORE ====================
+# ==================== THE MASTER COMPREHENSIVE MARKET DROPDOWN CATALOG ====================
+st.sidebar.markdown("---")
+st.sidebar.markdown("### 🌐 Asset Hub Selector")
+
 market_options = {
+    # 🇿🇦 South African Currency Crosses (Forex Majors)
     "USDZAR=X": {"name": "US Dollar / SA Rand", "type": "FX_ZAR"},
+    "EURZAR=X": {"name": "Euro / SA Rand Cross", "type": "FX_ZAR"},
+    "GBPZAR=X": {"name": "British Pound / SA Rand Cross", "type": "FX_ZAR"},
+    "AUDZAR=X": {"name": "Australian Dollar / SA Rand", "type": "FX_ZAR"},
+    "JPYZAR=X": {"name": "Japanese Yen / SA Rand Cross", "type": "FX_ZAR"},
+    
+    # 🌍 Global Forex Majors
     "GBPUSD=X": {"name": "British Pound / US Dollar", "type": "FX"},
     "EURUSD=X": {"name": "Euro / US Dollar", "type": "FX"},
     "USDJPY=X": {"name": "US Dollar / Japanese Yen", "type": "FX"},
     "AUDUSD=X": {"name": "Australian Dollar / US Dollar", "type": "FX"},
-    "EURZAR=X": {"name": "Euro / SA Rand Cross", "type": "FX_ZAR"},
-    "GBPZAR=X": {"name": "British Pound / SA Rand Cross", "type": "FX_ZAR"},
+    "USDCAD=X": {"name": "US Dollar / Canadian Dollar", "type": "FX"},
+    
+    # 🛢️ Global Commodities Suite
     "GC=F":     {"name": "Gold Ounce Futures", "type": "COMMODITY"},
-    "SOL.JO":   {"name": "Sasol Limited (JSE Shares)", "type": "EQUITY"},
-    "FSR.JO":   {"name": "FirstRand Bank (JSE Shares)", "type": "EQUITY"},
+    "SI=F":     {"name": "Silver Ounce Futures", "type": "COMMODITY"},
+    "CL=F":     {"name": "Crude Oil (WTI Futures)", "type": "COMMODITY"},
+    "BZ=F":     {"name": "Brent Crude Oil Futures", "type": "COMMODITY"},
+    "PL=F":     {"name": "Platinum Futures", "type": "COMMODITY"},
+    "HG=F":     {"name": "Copper Futures", "type": "COMMODITY"},
+    "NG=F":     {"name": "Natural Gas Futures", "type": "COMMODITY"},
+    
+    # 🇿🇦 Johannesburg Stock Exchange (JSE Leaders)
+    "SOL.JO":   {"name": "Sasol Limited (JSE)", "type": "EQUITY"},
+    "FSR.JO":   {"name": "FirstRand Bank (JSE)", "type": "EQUITY"},
     "SBK.JO":   {"name": "Standard Bank Group (JSE)", "type": "EQUITY"},
+    "ANG.JO":   {"name": "Anglogold Ashanti (JSE)", "type": "EQUITY"},
+    "IMP.JO":   {"name": "Impala Platinum (JSE)", "type": "EQUITY"},
+    
+    # 🇺🇸 Wall Street Blue Chips & Crypto
     "AAPL":     {"name": "Apple Inc. (Wall Street)", "type": "EQUITY"},
     "NVDA":     {"name": "NVIDIA Corp (Wall Street)", "type": "EQUITY"},
+    "TSLA":     {"name": "Tesla Motors (Wall Street)", "type": "EQUITY"},
     "BTC-USD":  {"name": "Bitcoin / US Dollar", "type": "EQUITY"},
+    "ETH-USD":  {"name": "Ethereum / US Dollar", "type": "EQUITY"},
+    
+    # 📉 Macro Stock Indices
     "^NDX":     {"name": "US Tech 100 (Nasdaq)", "type": "INDEX"},
-    "^DJI":     {"name": "Wall Street 30 (Dow Jones)", "type": "INDEX"}
+    "^DJI":     {"name": "Wall Street 30 (Dow Jones)", "type": "INDEX"},
+    "^GSPC":    {"name": "S&P 500 Index (US Market)", "type": "INDEX"},
+    "^J203.JO": {"name": "JSE All Share Index (SA)", "type": "INDEX"}
 }
 
-top_col1, top_col2 = st.columns(2)
-with top_col1:
-    selected_ticker = st.selectbox(
-        "Choose Market Vector:",
-        options=list(market_options.keys()),
-        format_func=lambda x: f"{market_options[x]['name']} ({x})",
-        label_visibility="collapsed"
-    )
-with top_col2:
-    scan_triggered = st.button("⚡ SCAN", use_container_width=True)
+# Pre-populated sidebar selectbox linking all 3 sheets dynamically
+selected_ticker = st.sidebar.selectbox(
+    "Choose Market Vector to Analyze:",
+    options=list(market_options.keys()),
+    format_func=lambda x: f"{market_options[x]['name']} ({x})"
+)
 
 active_asset = market_options[selected_ticker]
 
-# ==================== ENGINE CALCULATION PIPELINES ====================
+# ==================== ANALYTICS PROCESSING PIPELINES ====================
 def compile_market_signals(df_d, df_h):
     df_h = df_h.copy()
     close_series = pd.Series(df_h['Close'].values.flatten())
@@ -96,12 +121,9 @@ def compile_market_signals(df_d, df_h):
     for i in range(len(df_h)):
         if i < 200: continue
         price = float(close_series.iloc[i])
-        rsi = df_h['RSI'].iloc[i]
-        hist = df_h['MACD_Hist'].iloc[i]
-        
-        if (rsi < 45 or hist > 0) and (price > df_h['EMA_200'].iloc[i]):
+        if (df_h['RSI'].iloc[i] < 45 or df_h['MACD_Hist'].iloc[i] > 0) and (price > df_h['EMA_200'].iloc[i]):
             df_h.loc[df_h.index[i], 'Signal'] = "BUY"
-        elif (rsi > 55 or hist < 0) and (price < df_h['EMA_200'].iloc[i]):
+        elif (df_h['RSI'].iloc[i] > 55 or df_h['MACD_Hist'].iloc[i] < 0) and (price < df_h['EMA_200'].iloc[i]):
             df_h.loc[df_h.index[i], 'Signal'] = "SELL"
     return df_h
 
@@ -153,7 +175,9 @@ try:
     current_usdzar = float(yf.Ticker("USDZAR=X").history(period="1mo", interval="1d")['Close'].iloc[-1])
 except Exception:
     current_usdzar = 18.35
+st.sidebar.metric("🇿🇦 Live USD/ZAR Reference", f"R{current_usdzar:.2f}")
 
+# Fetch data exclusively for the active dropdown asset vector
 analyzed_watchlist = {}
 try:
     feed = yf.Ticker(selected_ticker)
@@ -164,10 +188,10 @@ try:
 except Exception:
     pass
 
-# ==================== PURE BALANCED PAGE MAP NAVIGATION ====================
+# ==================== SHEET RENDERING CONTROL BLOCKS ====================
 
 # 📈 PAGE 1: TERMINAL SIGNALS
-if module_sheet == "TERMINAL SIGNALS":
+if "TERMINAL SIGNALS" in module_sheet:
     st.markdown(f"## 📊 Embedded Intel Matrix: {active_asset['name']}")
     if selected_ticker in analyzed_watchlist:
         data = analyzed_watchlist[selected_ticker]
@@ -188,33 +212,3 @@ if module_sheet == "TERMINAL SIGNALS":
             mult = 10000 if active_asset["type"] in ["FX_ZAR", "FX"] else 1
             pts_sl = abs(latest['Close'] - stop_loss) * mult
             
-            if active_asset["type"] == "FX_ZAR" or ".JO" in selected_ticker:
-                real_zar_risk = pts_sl * 0.10
-            elif active_asset["type"] == "FX":
-                real_zar_risk = (pts_sl * 0.01) * current_usdzar
-            elif selected_ticker == "GC=F":
-                real_zar_risk = pts_sl * 1.00 * current_usdzar
-            else:
-                real_zar_risk = (pts_sl * 0.05) * current_usdzar
-                
-            risk_pct = (real_zar_risk / account_balance_zar) * 100
-            
-            st.subheader("🎯 Live Parameter Setup")
-            st.write(f"🛑 **Suggested SL:** {stop_loss:.4f} (`{pts_sl:.1f} pts away`)")
-            st.write(f"🏁 **Suggested TP:** {take_profit:.4f}")
-            st.write(f"🛡️ **Capital Exposure Risk:** R{real_zar_risk:.2f} ({risk_pct:.1f}% of capital)")
-            
-            if risk_pct > max_risk_allowed_pct:
-                st.error("⚠️ RISK WARNING: Exposure parameters exceed safe limits. Skip entry execution.")
-            else:
-                st.success("✅ RISK APPROVED: Sizing parameters safe.")
-
-# 📰 PAGE 2: SATELLITE NEWS
-if module_sheet == "SATELLITE NEWS":
-    st.markdown(f"## 📰 Embedded Intel Matrix: {active_asset['name']}")
-    live_items = fetch_live_rss_news()
-    
-    # Single-Line Validation Inversion Pattern: Resolves IndentationError 219 permanently
-    if not live_items:
-        st.info("🛰️ Broad baseline transmission stable. Monitoring global feeds.")
-    
