@@ -40,9 +40,10 @@ st.markdown("""
 st.sidebar.title("🛸 MARS_BOT V16.0")
 st.sidebar.markdown("### ☰ MAIN CORE")
 
+# Cleaned explicit string values to prevent array sorting mismatches
 module_sheet = st.sidebar.radio(
     "CHOOSE MODULE SHEET:",
-    options=["📊 TERMINAL SIGNALS", "📡 SATELLITE NEWS", "📋 LEDGER JOURNAL"]
+    options=["TERMINAL SIGNALS", "SATELLITE NEWS", "LEDGER JOURNAL"]
 )
 
 st.sidebar.markdown("---")
@@ -149,7 +150,6 @@ def log_trade(asset, direction, entry, sl, tp, status, pl):
     df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
     df.to_csv(JOURNAL_FILE, index=False)
 
-# --- REFERENCE LOGIC CORE ---
 try:
     current_usdzar = float(yf.Ticker("USDZAR=X").history(period="1mo", interval="1d")['Close'].iloc[-1])
 except Exception:
@@ -165,10 +165,10 @@ try:
 except Exception:
     pass
 
-# ==================== FLAT PAGE ROUTING CONDITIONS ====================
+# ==================== PURE BALANCED PAGE MAP NAVIGATION ====================
 
-# 🔘 MODULE 1: TERMINAL SIGNALS PAGE
-if "TERMINAL SIGNALS" in module_sheet:
+# 📈 PAGE 1: TERMINAL SIGNALS
+if module_sheet == "TERMINAL SIGNALS":
     st.markdown(f"## 📊 Embedded Intel Matrix: {active_asset['name']}")
     if selected_ticker in analyzed_watchlist:
         data = analyzed_watchlist[selected_ticker]
@@ -210,11 +210,10 @@ if "TERMINAL SIGNALS" in module_sheet:
             else:
                 st.success("✅ RISK APPROVED: Sizing parameters safe.")
 
-# 🔘 MODULE 2: SATELLITE NEWS PAGE
-if "SATELLITE NEWS" in module_sheet:
+# 📰 PAGE 2: SATELLITE NEWS
+if module_sheet == "SATELLITE NEWS":
     st.markdown(f"## 📰 Embedded Intel Matrix: {active_asset['name']}")
     live_items = fetch_live_rss_news()
-    
-    # Flattened conditional arrays to mathematically prevent nested indentation failures
-    has_no_news = len(live_items) == 0
-    if has_no_news:
+    if len(live_items) == 0:
+        st.info("🛰️ Broad baseline transmission stable. Monitoring global feeds.")
+    if len(live_items) > 0:
