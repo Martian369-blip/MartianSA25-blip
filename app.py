@@ -3,9 +3,11 @@ import yfinance as yf
 import pandas as pd
 import numpy as np
 import ta
+import os
 import plotly.graph_objects as go
 from datetime import datetime
 
+# --- CONNECT DEEP INTO SPECIALIZED MULTI-FILE TECHNIQUE MODULES ---
 try:
     import satellite_news as news
     import ledger_journal as journal
@@ -13,7 +15,16 @@ try:
 except (ImportError, SyntaxError):
     modules_ready = False
 
+# --- Visual State Engine Configuration ---
 st.set_page_config(page_title="MARS_BOT V12.5 Desk", page_icon="🛸", layout="wide")
+
+if "watchlists" not in st.session_state:
+    st.session_state.watchlists = {
+        "USDZAR=X":  {"name": "US Dollar / SA Rand", "type": "FX_ZAR"},
+        "GBPUSD=X":  {"name": "British Pound / US Dollar", "type": "FX"},
+        "GC=F":      {"name": "Gold Ounce Futures", "type": "COMMODITY"},
+        "^NDX":      {"name": "US Tech 100 (Nasdaq)", "type": "INDEX"}
+    }
 
 st.markdown("""
     <style>
@@ -98,18 +109,94 @@ def compile_market_signals(df_d, df_h):
     for i in range(len(df_h)):
         if i < 200: continue
         price = float(close_series.iloc[i])
-        if (df_h['RSI'].iloc[i] < 45 or df_h['MACD_Hist'].iloc[i] > 0) and (price > df_h['EMA_200'].iloc[i]):
+        rsi = df_h['RSI'].iloc[i]
+        hist = df_h['MACD_Hist'].iloc[i]
+        
+        if (rsi < 45 or hist > 0) and (price > df_h['EMA_200'].iloc[i]):
             df_h.loc[df_h.index[i], 'Signal'] = "BUY"
-        elif (df_h['RSI'].iloc[i] > 55 or df_h['MACD_Hist'].iloc[i] < 0) and (price < df_h['EMA_200'].iloc[i]):
+        elif (rsi > 55 or hist < 0) and (price < df_h['EMA_200'].iloc[i]):
             df_h.loc[df_h.index[i], 'Signal'] = "SELL"
     return df_h
 
 def draw_advanced_chart(df, title_name):
+    """
+    Generates a high-fidelity TradingView clone candlestick chart layout
+    with right-hand side pricing orientation and float markers.
+    """
     plot_df = df.tail(100)
+    latest_price = float(plot_df['Close'].iloc[-1])
+    
     fig = go.Figure()
-    fig.add_trace(go.Candlestick(x=plot_df.index, open=plot_df['Open'], high=plot_df['High'], low=plot_df['Low'], close=plot_df['Close'], name="Candles"))
-    fig.add_trace(go.Scatter(x=plot_df.index, y=plot_df['EMA_200'], line=dict(color='#ff9900', width=1.5), name="200 EMA"))
-    fig.update_layout(xaxis_rangeslider_visible=False, height=420, template="plotly_dark", paper_bgcolor="#0c0e14", plot_bgcolor="#0c0e14", margin=dict(l=10, r=10, t=30, b=10))
+    
+    # 🕯️ 1. Draw High-Vis Candlesticks (TradingView Style Colors)
+    fig.add_trace(go.Candlestick(
+        x=plot_df.index, 
+        open=plot_df['Open'], high=plot_df['High'],
+        low=plot_df['Low'], close=plot_df['Close'], 
+        name="Candles",
+        increasing_line_color='#26a69a', increasing_fill_color='#26a69a',
+        decreasing_line_color='#ef5350', decreasing_fill_color='#ef5350'
+    ))
+    
+    # 🟠 2. Overlay Smooth 200 EMA Line
+    fig.add_trace(go.Scatter(
+        x=plot_df.index, y=plot_df['EMA_200'],
+        line=dict(color='#ff9800', width=1.5), 
+        name="200 EMA"
+    ))
+    
+    # 🚀 3. Plot Native TradingView Execution Badges
+    buys = plot_df[plot_df['Signal'] == "BUY"]
+    sells = plot_df[plot_df['Signal'] == "SELL"]
+    
+    # Buy Badges
+    fig.add_trace(go.Scatter(
+        x=buys.index, y=buys['Low'] * 0.997, 
+        mode='markers+text',
+        text=["🟢 BUY"] * len(buys),
+        textposition="bottom center",
+        textfont=dict(color="#26a69a", size=10, family="Arial Black"),
+        marker=dict(symbol='triangle-up', size=10, color='#26a69a'), 
+        name="BUY Signal"
+    ))
+    
+    # Sell Badges
+    fig.add_trace(go.Scatter(
+        x=sells.index, y=sells['High'] * 1.003, 
+        mode='markers+text',
+        text=["🔴 SELL"] * len(sells),
+        textposition="top center",
+        textfont=dict(color="#ef5350", size=10, family="Arial Black"),
+        marker=dict(symbol='triangle-down', size=10, color='#ef5350'), 
+        name="SELL Signal"
+    ))
+    
+    # 🎯 4. Inject Active TradingView Price Axis Line
+    fig.add_hline(
+        y=latest_price, 
+        line_dash="dash", 
+        line_color="#787b86", 
+        line_width=1,
+        annotation_text=f" Live: {latest_price:.4f}" if latest_price < 100 else f" Live: {latest_price:.2f}", 
+        annotation_position="right",
+        annotation_font=dict(size=11, color="#ffffff", family="Arial Black"),
+        annotation_bgcolor="#26a69a" if plot_df['Close'].iloc[-1] >= plot_df['Open'].iloc[-1] else "#ef5350"
+    )
+    
+    # 🎛️ 5. Clean Layout Metrics (Right Side Y-Axis Toggle Active)
+    fig.update_layout(
+        title=f"📊 {title_name} - MARS TELEMETRY HUB",
+        xaxis_rangeslider_visible=False, 
+        height=450,
+        template="plotly_dark", 
+        paper_bgcolor="#0c0e14", 
+        plot_bgcolor="#0c0e14",
+        margin=dict(l=10, r=70, t=40, b=10),
+        hovermode="x unified",
+        xaxis=dict(gridcolor="#1e222d", showgrid=True),
+        yaxis=dict(gridcolor="#1e222d", showgrid=True, side="right")
+    )
+    
     return fig
 
 try:
@@ -139,49 +226,3 @@ with tab_matrix:
         signal_text = "⏳ HOLD" if latest['Signal'] == "HOLD" else f"🔥 {latest['Signal']}"
         
         st.markdown(f"**Current Status Horizon:** {signal_text}")
-        st.plotly_chart(draw_advanced_chart(df_analyzed, active_asset['name']), use_container_width=True)
-        
-        col1, col2 = st.columns(2)
-        with col1:
-            st.metric("Spot Price", f"R{latest['Close']:.4f}" if "ZAR" in selected_ticker or ".JO" in selected_ticker else f"${latest['Close']:.4f}" if active_asset["type"] == "FX" else f"${latest['Close']:.2f}")
-            st.metric("RSI Oscillator", f"{latest['RSI']:.1f}")
-        with col2:
-            sl_dist = float(latest['ATR']) * 2.0
-            stop_loss = float(latest['Close'] - sl_dist if latest['Signal'] != "SELL" else latest['Close'] + sl_dist)
-            take_profit = float(latest['Close'] + (sl_dist * 2.0) if latest['Signal'] != "SELL" else latest['Close'] - (sl_dist * 2.0))
-            mult = 10000 if active_asset["type"] in ["FX_ZAR", "FX"] else 1
-            pts_sl = abs(latest['Close'] - stop_loss) * mult
-            
-            if active_asset["type"] == "FX_ZAR" or ".JO" in selected_ticker:
-                real_zar_risk = pts_sl * 0.10
-            elif active_asset["type"] == "FX":
-                real_zar_risk = (pts_sl * 0.01) * current_usdzar
-            else:
-                real_zar_risk = (pts_sl * 0.10) * current_usdzar
-                
-            risk_pct = (real_zar_risk / account_balance_zar) * 100
-            
-            st.subheader("🎯 Live Parameter Setup")
-            st.write(f"🛑 **Suggested SL Price:** {stop_loss:.4f} (`{pts_sl:.1f} pts away`)")
-            st.write(f"🏁 **Suggested TP Price:** {take_profit:.4f}")
-            st.write(f"🛡️ **Capital Exposure Risk:** R{real_zar_risk:.2f} ({risk_pct:.1f}% of capital)")
-            
-            if risk_pct > max_risk_allowed_pct:
-                st.error("⚠️ RISK WARNING: Exposure parameters exceed safe limits. Skip entry execution.")
-            else:
-                st.success("✅ RISK APPROVED: Asset conditions match small account scaling metrics.")
-
-# ==================== SHEET 2: LINKED SATELLITE MODULE ====================
-with tab_news:
-    if modules_ready:
-        news.render_news_tab(analyzed_watchlist)
-    else:
-        st.info("Syncing satellite news modules...")
-
-# ==================== SHEET 3: LINKED LEDGER MODULE ====================
-with tab_journal:
-    if modules_ready:
-        ledger_map = {selected_ticker: active_asset}
-        journal.render_journal_tab(ledger_map, current_usdzar)
-    else:
-        st.info("Syncing transaction ledger modules...")
