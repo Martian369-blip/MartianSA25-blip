@@ -204,4 +204,3 @@ with tab_news:
     live_headlines = fetch_live_rss_news()
     if live_headlines:
         for item in live_headlines:
-            # Fixed indentation spacing perfectly under the 'for' loop block
