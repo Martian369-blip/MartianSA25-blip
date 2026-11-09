@@ -182,4 +182,4 @@ with tab_journal:
             total_win = len(closed_trades[closed_trades['Profit_Loss_ZAR'] > 0])
             win_rate = (total_win / len(closed_trades)) * 100
             st.metric("Win Rate Profile", f"{win_rate:.1f}%", f"Total Net return: R{closed_trades['Profit_Loss_ZAR'].sum():.2f}")
-    else:
+        else:
