@@ -31,6 +31,7 @@ st.markdown("""
         border-left: 4px solid #ff9900;
         margin-top: 10px;
         margin-bottom: 10px;
+        color: white;
     }
     .stTabs [data-baseweb="tab-list"] { gap: 4px; }
     .stTabs [data-baseweb="tab"] {
@@ -107,7 +108,6 @@ def draw_advanced_chart(df, title_name):
     return fig
 
 def fetch_live_rss_news():
-    """Pulls live streaming market intelligence directly from standard broadband news wire networks."""
     headlines = []
     rss_url = "https://cnbc.com"
     try:
@@ -121,17 +121,15 @@ def fetch_live_rss_news():
                 title_text = title.text if title is not None else ""
                 date_text = pub_date.text if pub_date is not None else ""
                 if title_text:
-                    headlines.append([title_text, "CNBC Live Desk", date_text[:25].strip()])
+                    headlines.append({"title": title_text, "source": "CNBC Live Desk", "time": date_text[:25].strip()})
     except Exception:
         pass
     return headlines
 
 def load_journal():
     if os.path.exists(JOURNAL_FILE):
-        try:
-            return pd.read_csv(JOURNAL_FILE)
-        except Exception:
-            pass
+        try: return pd.read_csv(JOURNAL_FILE)
+        except Exception: pass
     return pd.DataFrame(columns=["Timestamp", "Asset", "Type", "Direction", "Entry_Price", "SL", "TP", "Status", "Profit_Loss_ZAR"])
 
 def log_trade(asset, direction, entry, sl, tp, status, pl):
@@ -216,3 +214,6 @@ with tab_news:
     st.markdown(f"### 📰 Live Global News Feed ({active_asset['name']})")
     live_items = fetch_live_rss_news()
     
+    if not live_items:
+        st.info("🛰️ Broad baseline transmission stable. Monitoring global feeds.")
+    else:
