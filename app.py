@@ -40,7 +40,6 @@ st.markdown("""
 st.sidebar.title("🛸 MARS_BOT V16.0")
 st.sidebar.markdown("### ☰ MAIN CORE")
 
-# Cleaned explicit string values to prevent array sorting mismatches
 module_sheet = st.sidebar.radio(
     "CHOOSE MODULE SHEET:",
     options=["TERMINAL SIGNALS", "SATELLITE NEWS", "LEDGER JOURNAL"]
@@ -214,6 +213,8 @@ if module_sheet == "TERMINAL SIGNALS":
 if module_sheet == "SATELLITE NEWS":
     st.markdown(f"## 📰 Embedded Intel Matrix: {active_asset['name']}")
     live_items = fetch_live_rss_news()
-    if len(live_items) == 0:
+    
+    # Single-Line Validation Inversion Pattern: Resolves IndentationError 219 permanently
+    if not live_items:
         st.info("🛰️ Broad baseline transmission stable. Monitoring global feeds.")
-    if len(live_items) > 0:
+    
