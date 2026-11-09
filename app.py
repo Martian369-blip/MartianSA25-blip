@@ -10,7 +10,7 @@ import plotly.graph_objects as go
 from datetime import datetime
 
 # --- SYSTEM INITIALIZATION MATRIX ---
-st.set_page_config(page_title="MARS_BOT V16.0 Desk", page_icon="🛸", layout="wide")
+st.set_page_config(page_title="MARS_BOT V12.0 Desk", page_icon="🛸", layout="wide")
 
 JOURNAL_FILE = "trading_journal.csv"
 
@@ -37,7 +37,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # ==================== SIDEBAR CONTROL PANEL ====================
-st.sidebar.title("🛸 MARS_BOT V16.0")
+st.sidebar.title("🛸 MARS_BOT V12.0")
 st.sidebar.markdown("### ☰ MAIN CORE")
 
 module_sheet = st.sidebar.radio(
@@ -99,7 +99,6 @@ market_options = {
     "^J203.JO": {"name": "JSE All Share Index (SA)", "type": "INDEX"}
 }
 
-# Pre-populated sidebar selectbox linking all 3 sheets dynamically
 selected_ticker = st.sidebar.selectbox(
     "Choose Market Vector to Analyze:",
     options=list(market_options.keys()),
@@ -190,7 +189,7 @@ except Exception:
 
 # ==================== SHEET RENDERING CONTROL BLOCKS ====================
 
-# 📈 PAGE 1: TERMINAL SIGNALS
+# 📈 SHEET 1: TERMINAL SIGNALS
 if "TERMINAL SIGNALS" in module_sheet:
     st.markdown(f"## 📊 Embedded Intel Matrix: {active_asset['name']}")
     if selected_ticker in analyzed_watchlist:
@@ -212,3 +211,4 @@ if "TERMINAL SIGNALS" in module_sheet:
             mult = 10000 if active_asset["type"] in ["FX_ZAR", "FX"] else 1
             pts_sl = abs(latest['Close'] - stop_loss) * mult
             
+            if active_asset["type"] == "FX_ZAR" or ".JO" in selected_ticker:
