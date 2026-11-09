@@ -9,12 +9,12 @@ import xml.etree.ElementTree as ET
 import plotly.graph_objects as go
 from datetime import datetime
 
-# --- SYSTEM INITIALIZATION HUB ---
+# --- SYSTEM SYSTEM LEVEL INITIALIZATION MATRIX ---
 st.set_page_config(page_title="MARS_BOT V12.0 Desk", page_icon="🛸", layout="wide")
 
 JOURNAL_FILE = "trading_journal.csv"
 
-# ==================== ADVANCED VISUAL THEME ENGINE ====================
+# ==================== NATIVE THEME LAYER INJECTIONS ====================
 st.markdown("""
     <style>
     .metric-card {
@@ -22,6 +22,14 @@ st.markdown("""
         padding: 15px;
         border-radius: 10px;
         border: 1px solid #232936;
+        margin-bottom: 10px;
+    }
+    .news-card-wrapper {
+        background-color: #161a25;
+        padding: 14px;
+        border-radius: 8px;
+        border-left: 4px solid #ff9900;
+        margin-top: 10px;
         margin-bottom: 10px;
     }
     .stTabs [data-baseweb="tab-list"] { gap: 4px; }
@@ -38,7 +46,7 @@ st.sidebar.markdown("### 🛡️ Capital Defense Deck")
 account_balance_zar = st.sidebar.number_input("Wallet Capital Base (ZAR)", min_value=10.0, value=500.00, step=50.0)
 max_risk_allowed_pct = st.sidebar.slider("Maximum Trade Allocation Risk (%)", 1.0, 10.0, 5.0)
 
-# ==================== MASTER COMPREHENSIVE MARKET DROPDOWN ====================
+# ==================== MASTER COMPREHENSIVE MARKET CATALOG ====================
 st.sidebar.markdown("### 🌐 Asset Hub Selector")
 
 market_options = {
@@ -68,7 +76,7 @@ selected_ticker = st.sidebar.selectbox(
 
 active_asset = market_options[selected_ticker]
 
-# ==================== ANALYTICS & MATH SCANNING CORES ====================
+# ==================== DATA ARCHITECTURE COMPILATION LAYER ====================
 def compile_market_signals(df_d, df_h):
     df_h = df_h.copy()
     close_series = pd.Series(df_h['Close'].values.flatten())
@@ -99,6 +107,7 @@ def draw_advanced_chart(df, title_name):
     return fig
 
 def fetch_live_rss_news():
+    """Pulls live streaming market intelligence directly from standard broadband news wire networks."""
     headlines = []
     rss_url = "https://cnbc.com"
     try:
@@ -112,23 +121,36 @@ def fetch_live_rss_news():
                 title_text = title.text if title is not None else ""
                 date_text = pub_date.text if pub_date is not None else ""
                 if title_text:
-                    headlines.append({"title": title_text, "source": "CNBC Live Desk", "time": date_text[:25].strip()})
+                    headlines.append([title_text, "CNBC Live Desk", date_text[:25].strip()])
     except Exception:
         pass
     return headlines
 
 def load_journal():
     if os.path.exists(JOURNAL_FILE):
-        try: return pd.read_csv(JOURNAL_FILE)
-        except Exception: pass
+        try:
+            return pd.read_csv(JOURNAL_FILE)
+        except Exception:
+            pass
     return pd.DataFrame(columns=["Timestamp", "Asset", "Type", "Direction", "Entry_Price", "SL", "TP", "Status", "Profit_Loss_ZAR"])
 
-def log_trade(asset, direction, entry, sl, tp, status="OPEN", pl=0.0):
+def log_trade(asset, direction, entry, sl, tp, status, pl):
     df = load_journal()
-    new_row = {"Timestamp": datetime.now().strftime("%Y-%m-%d %H:%M"), "Asset": asset, "Type": "MANUAL", "Direction": direction, "Entry_Price": float(entry), "SL": float(sl), "TP": float(tp), "Status": status, "Profit_Loss_ZAR": float(pl)}
+    new_row = {
+        "Timestamp": datetime.now().strftime("%Y-%m-%d %H:%M"),
+        "Asset": str(asset),
+        "Type": "MANUAL",
+        "Direction": str(direction),
+        "Entry_Price": float(entry),
+        "SL": float(sl),
+        "TP": float(tp),
+        "Status": str(status),
+        "Profit_Loss_ZAR": float(pl)
+    }
     df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
     df.to_csv(JOURNAL_FILE, index=False)
 
+# --- GLOBAL MACRO REFERENCE CROSS STREAMS ---
 try:
     current_usdzar = float(yf.Ticker("USDZAR=X").history(period="1mo", interval="1d")['Close'].iloc[-1])
 except Exception:
@@ -137,6 +159,7 @@ st.sidebar.metric("🇿🇦 Live USD/ZAR Reference", f"R{current_usdzar:.2f}")
 
 tab_matrix, tab_news, tab_journal = st.tabs(["📊 TERMINAL SIGNALS", "📰 SATELLITE NEWS", "📓 LEDGER JOURNAL"])
 
+# Isolate structural market data arrays
 analyzed_watchlist = {}
 try:
     feed = yf.Ticker(selected_ticker)
@@ -147,7 +170,7 @@ try:
 except Exception:
     st.error("⚠️ Error loading live technical data feeds.")
 
-# ==================== SHEET 1: TERMINAL SIGNALS MATRIX ====================
+# ==================== TAB 1: TERMINAL SIGNALS MATRIX ====================
 with tab_matrix:
     st.markdown(f"### 📊 Active Vector Signal: {active_asset['name']}")
     if selected_ticker in analyzed_watchlist:
@@ -188,11 +211,8 @@ with tab_matrix:
             else:
                 st.success("✅ RISK APPROVED: Asset conditions match small account scaling metrics.")
 
-# ==================== SHEET 2: BULLETIN SATELLITE NEWS DESK ====================
+# ==================== TAB 2: BULLETIN SATELLITE NEWS DESK ====================
 with tab_news:
     st.markdown(f"### 📰 Live Global News Feed ({active_asset['name']})")
-    live_headlines = fetch_live_rss_news()
+    live_items = fetch_live_rss_news()
     
-    # 🛰️ INNOVATIVE FLAT CONTAINER METHOD (Bypasses nested 'for' indentation errors entirely)
-    if live_headlines:
-        cards_html_string = "".join([f"<div style='background-color: #161a25; padding: 12px; border-radius: 6px; border-left: 3px solid #ff9900; margin-bottom: 8px; color: white; font-family: sans-serif;'>📢 <b>{h['title']}</b><br><small style='color: #7f8c8d;'>Desk Source: {h['source']} | Time Log: {h['time']}</small></div>" for h in live_headlines])
