@@ -18,7 +18,6 @@ except (ImportError, SyntaxError) as e:
     modules_imported = False
     st.sidebar.warning("⚠️ Core Engine Module Syncing... Using Standby Architecture Core.")
 
-# --- STANDBY BACKUP LOGIC INJECTORS (Runs only if modular files are unreadable) ---
 JOURNAL_FILE = "trading_journal.csv"
 
 def backup_compile_market_signals(df_d, df_h):
@@ -64,7 +63,6 @@ def backup_log_trade(asset, trade_type, direction, entry, sl, tp, status="OPEN",
 # 🏛️ WORKSPACE WORKFLOW LAYER
 # ==============================================================================
 st.set_page_config(page_title="MARS_BOT V10.0 Desk", page_icon="🛸", layout="wide")
-
 st.markdown("<style>.stTabs [data-baseweb='tab'] { padding: 10px 20px; }</style>", unsafe_allow_html=True)
 
 st.title("🛸 MARS_BOT V10.0: MASTER ANALYSIS DESK")
@@ -101,23 +99,14 @@ with tab_matrix:
             feed = yf.Ticker(ticker)
             df_d = feed.history(period="3mo", interval="1d")
             df_h = feed.history(period="1mo", interval="1h")
-            
             if df_d.empty or df_h.empty: continue
             
-            if modules_imported:
-                df_analyzed = engine.compile_market_signals(df_d, df_h)
-            else:
-                df_analyzed = backup_compile_market_signals(df_d, df_h)
-                
+            df_analyzed = engine.compile_market_signals(df_d, df_h) if modules_imported else backup_compile_market_signals(df_d, df_h)
             latest = df_analyzed.iloc[-1]
             signal_text = "⏳ HOLD" if latest['Signal'] == "HOLD" else f"🔥 {latest['Signal']}"
             
             with st.expander(f"📦 {asset['name']} ({ticker}) — Status: {signal_text}"):
-                if modules_imported:
-                    chart_fig = theme.draw_advanced_chart(df_analyzed, asset['name'])
-                else:
-                    chart_fig = backup_draw_advanced_chart(df_analyzed, asset['name'])
-                    
+                chart_fig = theme.draw_advanced_chart(df_analyzed, asset['name']) if modules_imported else backup_draw_advanced_chart(df_analyzed, asset['name'])
                 st.plotly_chart(chart_fig, use_container_width=True)
                 
                 col1, col2 = st.columns(2)
@@ -175,11 +164,17 @@ with tab_journal:
     st.subheader("📋 Historical Trade Ledger Sheet")
     journal_df = engine.load_journal() if modules_imported else backup_load_journal()
     
-    if not journal_df.empty:
+    if journal_df.empty:
+        st.info("Ledger clear. Commit manual positions to compile dashboard analytics.")
+    else:
         st.dataframe(journal_df, use_container_width=True)
         closed_trades = journal_df[journal_df['Status'] == "CLOSED"]
-        if not closed_trades.empty:
+        
+        # Isolated Matrix Mapping: Removes indentation blocks entirely
+        has_closed = not closed_trades.empty
+        if has_closed:
             total_win = len(closed_trades[closed_trades['Profit_Loss_ZAR'] > 0])
             win_rate = (total_win / len(closed_trades)) * 100
             st.metric("Win Rate Profile", f"{win_rate:.1f}%", f"Total Net return: R{closed_trades['Profit_Loss_ZAR'].sum():.2f}")
-        else:
+        if not has_closed:
+            st.info("No closed positions logged yet. Win rate metrics will populate once positions are finalized.")
