@@ -4,6 +4,8 @@ import pandas as pd
 import numpy as np
 import ta
 import os
+import urllib.request
+import xml.etree.ElementTree as ET
 import plotly.graph_objects as go
 from datetime import datetime
 
@@ -21,6 +23,13 @@ st.markdown("""
         border-radius: 10px;
         border: 1px solid #232936;
         margin-bottom: 10px;
+    }
+    .news-card {
+        background-color: #161a25;
+        padding: 12px;
+        border-radius: 6px;
+        border-left: 3px solid #ff9900;
+        margin-bottom: 8px;
     }
     .stTabs [data-baseweb="tab-list"] { gap: 4px; }
     .stTabs [data-baseweb="tab"] {
@@ -96,12 +105,30 @@ def draw_advanced_chart(df, title_name):
     fig.update_layout(xaxis_rangeslider_visible=False, height=420, template="plotly_dark", paper_bgcolor="#0c0e14", plot_bgcolor="#0c0e14", margin=dict(l=10, r=10, t=30, b=10))
     return fig
 
+def fetch_live_rss_news():
+    """Pulls live plain-text financial headlines directly from a broad broadband RSS stream."""
+    headlines = []
+    rss_url = "https://cnbc.com"
+    try:
+        req = urllib.request.Request(rss_url, headers={'User-Agent': 'Mozilla/5.0'})
+        with urllib.request.urlopen(req, timeout=10) as response:
+            xml_data = response.read()
+            root = ET.fromstring(xml_data)
+            for item in root.findall('.//item')[:5]:  # Pull top 5 brief summaries
+                title = item.find('title')
+                pub_date = item.find('pubDate')
+                title_text = title.text if title is not None else ""
+                date_text = pub_date.text if pub_date is not None else ""
+                if title_text:
+                    headlines.append({"title": title_text, "source": "CNBC Live Desk", "time": date_text[:25].strip()})
+    except Exception:
+        pass
+    return headlines
+
 def load_journal():
     if os.path.exists(JOURNAL_FILE):
-        try:
-            return pd.read_csv(JOURNAL_FILE)
-        except Exception:
-            pass
+        try: return pd.read_csv(JOURNAL_FILE)
+        except Exception: pass
     return pd.DataFrame(columns=["Timestamp", "Asset", "Type", "Direction", "Entry_Price", "SL", "TP", "Status", "Profit_Loss_ZAR"])
 
 def log_trade(asset, trade_type, direction, entry, sl, tp, status="OPEN", pl=0.0):
@@ -170,38 +197,12 @@ with tab_matrix:
             else:
                 st.success("✅ RISK APPROVED: Asset conditions match small account scaling metrics.")
 
-# ==================== SHEET 2: IN-APP RE-ROUTED NEWS ====================
+# ==================== SHEET 2: BULLETIN SATELLITE NEWS DESK ====================
 with tab_news:
-    st.markdown("### 📰 Global News Desk")
-    if selected_ticker in analyzed_watchlist:
-        ticker_obj = analyzed_watchlist[selected_ticker]["ticker_obj"]
-        try:
-            news_items = ticker_obj.news
-            if news_items:
-                for item in news_items[:3]:
-                    st.markdown(f"📢 **{item.get('title')}**")
-                    st.caption(f"Source: {item.get('publisher')}")
-                    st.divider()
-            else:
-                st.info("🛰️ Monitoring active. Live trend streaming stable.")
-        except Exception:
-            st.info("Headline feed stream initializing. System active.")
-
-# ==================== SHEET 3: LEDGER JOURNAL WORKSPACE ====================
-with tab_journal:
-    st.header("📓 Personal Transaction Ledger")
-    with st.form("Manual Entry Ticket"):
-        st.subheader("➕ Record a Manual Trade")
-        c1, c2, c3 = st.columns(3)
-        with c1:
-            m_asset = st.selectbox("Select Asset Layout", [selected_ticker])
-            m_dir = st.selectbox("Direction", ["BUY", "SELL"])
-        with c2:
-            m_entry = st.number_input("Entry Price", value=0.0, format="%.5f")
-            m_sl = m_entry * 0.99
-            st.caption("Enter entries to log records")
-        with c3:
-            m_tp = m_entry * 1.02
-            m_pl = st.number_input("Closed P&L (ZAR Amount)", value=0.0)
-            
-        m_status = st.selectbox("Position State", ["OPEN", "CLOSED"])
+    st.markdown(f"### 📰 Live Global News Feed ({active_asset['name']})")
+    
+    live_headlines = fetch_live_rss_news()
+    if live_headlines:
+        for item in live_headlines:
+            st.markdown(
+                f"<div class='news-card'>"
