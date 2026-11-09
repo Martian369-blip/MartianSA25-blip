@@ -8,7 +8,7 @@ import plotly.graph_objects as go
 from datetime import datetime
 
 # --- CONFIGURATION INITIALIZATION ---
-st.set_page_config(page_title="MARS_BOT V10.5 Desk", page_icon="🛸", layout="wide")
+st.set_page_config(page_title="MARS_BOT V11.0 Desk", page_icon="🛸", layout="wide")
 
 JOURNAL_FILE = "trading_journal.csv"
 
@@ -29,6 +29,13 @@ st.markdown("""
         border-radius: 4px;
         margin-bottom: 15px;
     }
+    .news-card {
+        background-color: #161a25;
+        padding: 12px;
+        border-radius: 6px;
+        border-left: 3px solid #3498db;
+        margin-bottom: 8px;
+    }
     .stTabs [data-baseweb="tab-list"] { gap: 4px; }
     .stTabs [data-baseweb="tab"] {
         background-color: #121620;
@@ -42,6 +49,12 @@ st.markdown("""
 st.sidebar.markdown("### 🛡️ Capital Defense Deck")
 account_balance_zar = st.sidebar.number_input("Wallet Capital Base (ZAR)", min_value=10.0, value=500.00, step=50.0)
 max_risk_allowed_pct = st.sidebar.slider("Maximum Trade Allocation Risk (%)", 1.0, 10.0, 5.0)
+
+# ==================== GLOBAL FX MATRIX SEARCH ENGINE ====================
+st.sidebar.markdown("### 🔍 FX Market Search Engine")
+st.sidebar.caption("Format example: EURUSD=X, AUDUSD=X, EURZAR=X")
+search_ticker = st.sidebar.text_input("Enter Ticker Symbol:", value="").strip().upper()
+trigger_search = st.sidebar.button("⚡ Scan Asset Vector")
 
 # ==================== ANALYTICS & HYPOTHESIS CALCULATORS ====================
 def compile_market_signals(df_d, df_h):
@@ -66,7 +79,6 @@ def compile_market_signals(df_d, df_h):
         ema = df_h['EMA_200'].iloc[i]
         hist = df_h['MACD_Hist'].iloc[i]
         
-        # Upgraded Strategy Framework: Combining momentum pulls with trend conditions
         if (rsi < 40 or hist > 0) and (price > ema):
             df_h.loc[df_h.index[i], 'Signal'] = "BUY"
         elif (rsi > 60 or hist < 0) and (price < ema):
@@ -117,11 +129,11 @@ def log_trade(asset, trade_type, direction, entry, sl, tp, status="OPEN", pl=0.0
 # ==============================================================================
 # 🏛️ WORKSPACE MATRIX CONTROL PANEL
 # ==============================================================================
-st.title("🛸 MARS_BOT V10.5: ADVANCED CORE CONTROL")
+st.title("🛸 MARS_BOT V11.0: MASTER CORE CONTROL")
 st.caption(f"🕒 Engine Core Sync: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} SAST")
 
 # Render Three Sheet Workspace Layout
-tab_matrix, tab_news, tab_journal = st.tabs(["📊 TERMINAL SIGNALS", "📰 SATELLITE NEWS", " Ledger Journal"])
+tab_matrix, tab_news, tab_journal = st.tabs(["📊 TERMINAL SIGNALS", "📰 SATELLITE NEWS", "📓 LEDGER JOURNAL"])
 
 try:
     current_usdzar = float(yf.Ticker("USDZAR=X").history(period="1mo", interval="1d")['Close'].iloc[-1])
@@ -130,12 +142,18 @@ except Exception:
 
 st.sidebar.metric("🇿🇦 Live USD/ZAR Reference", f"R{current_usdzar:.2f}")
 
+# Core baseline watchlist
 watchlists = {
     "USDZAR=X":  {"name": "US Dollar / SA Rand", "type": "FX_ZAR"},
     "GBPUSD=X":  {"name": "British Pound / US Dollar", "type": "FX"},
     "GC=F":      {"name": "Gold Ounce Futures", "type": "COMMODITY"},
     "^NDX":      {"name": "US Tech 100 (Nasdaq 100)", "type": "INDEX"}
 }
+
+# Dynamic implementation of user-searched assets into active memory desk
+if trigger_search and search_ticker:
+    if search_ticker not in watchlists:
+        watchlists[search_ticker] = {"name": f"Searched Asset Vector ({search_ticker})", "type": "FX"}
 
 # --- PROCESS TICKER DATA ONSHORE ---
 analyzed_watchlists = {}
@@ -151,10 +169,18 @@ for ticker, asset in watchlists.items():
                 "ticker_obj": feed
             }
     except Exception:
+        if ticker == search_ticker:
+            st.sidebar.error(f"❌ Could not isolate asset telemetry for symbol: {ticker}")
         continue
+
+target_rrr = 2.0
+atr_multiplier = 2.0
 
 # ==================== SHEET 1: TERMINAL SIGNALS MATRIX ====================
 with tab_matrix:
+    if trigger_search and search_ticker in analyzed_watchlists:
+        st.success(f"🎯 Vector Core focused on searched asset: {search_ticker}")
+        
     st.markdown("### 📊 Active Vector Signals Matrix")
     for ticker, data in analyzed_watchlists.items():
         asset = data["asset"]
@@ -169,14 +195,14 @@ with tab_matrix:
             
             col1, col2 = st.columns(2)
             with col1:
-                st.metric("Spot Price", f"R{latest['Close']:.4f}" if "ZAR" in ticker else f"${latest['Close']:.2f}")
+                st.metric("Spot Price", f"R{latest['Close']:.4f}" if "ZAR" in ticker else f"${latest['Close']:.4f}" if asset["type"] == "FX" else f"${latest['Close']:.2f}")
                 st.metric("RSI Oscillator", f"{latest['RSI']:.1f}")
             
             with col2:
-                # Continuous calculations for parameter lines (Always visible)
-                sl_dist = float(latest['ATR']) * 2.0
+                # Continuous calculations for parameter lines (Always visible on desk)
+                sl_dist = float(latest['ATR']) * atr_multiplier
                 stop_loss = float(latest['Close'] - sl_dist if latest['Signal'] != "SELL" else latest['Close'] + sl_dist)
-                take_profit = float(latest['Close'] + (sl_dist * 2.0) if latest['Signal'] != "SELL" else latest['Close'] - (sl_dist * 2.0))
+                take_profit = float(latest['Close'] + (sl_dist * target_rrr) if latest['Signal'] != "SELL" else latest['Close'] - (sl_dist * target_rrr))
                 
                 mult = 10000 if asset["type"] in ["FX_ZAR", "FX"] else 1
                 pts_sl = abs(latest['Close'] - stop_loss) * mult
@@ -190,24 +216,3 @@ with tab_matrix:
                 st.write(f"🛡️ **Capital Exposure Risk:** R{real_zar_risk:.2f} ({risk_pct:.1f}% of capital)")
                 
                 if risk_pct > max_risk_allowed_pct:
-                    st.error("⚠️ RISK WARNING: Exposure parameters exceed safe limits. Skip entry execution.")
-                else:
-                    st.success("✅ RISK APPROVED: Asset conditions match small account scaling metrics.")
-                
-                if st.button(f"📥 Log Signal Reference", key=f"bot_{ticker}"):
-                    log_trade(ticker, "AUTOMATIC", latest['Signal'], latest['Close'], stop_loss, take_profit)
-                    st.success("Transaction baseline pushed to ledger.")
-
-# ==================== SHEET 2: LIVE SATELLITE NEWS & HYPOTHESIS ====================
-with tab_news:
-    st.markdown("### 📰 Global News & Market Hypothesis Desk")
-    
-    for ticker, data in analyzed_watchlists.items():
-        asset = data["asset"]
-        latest = data["df"].iloc[-1]
-        ticker_obj = data["ticker_obj"]
-        
-        st.markdown(f"#### 📦 {asset['name']} Portfolio Flow ({ticker})")
-        
-        # Display the custom market hypothesis
-        hypothesis_content = generate_market_hypothesis(ticker, latest, asset['name'])
