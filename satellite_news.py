@@ -28,7 +28,6 @@ def fetch_fallback_rss_news(asset_name):
     RSS streams when individual ticker APIs are empty.
     """
     headlines = []
-    # Using CNBC's international finance stream as a bulletproof fallback matrix
     rss_url = "https://cnbc.com"
     
     try:
@@ -44,12 +43,11 @@ def fetch_fallback_rss_news(asset_name):
                 title_text = title.text if title is not None else ""
                 date_text = pub_date.text if pub_date is not None else ""
                 
-                # Format time string cleanly to SAST standards
                 if date_text:
                     try:
                         parsed_date = datetime.strptime(date_text[:25].strip(), "%a, %d %b %Y %H:%M:%S")
                         date_fmt = parsed_date.strftime('%Y-%m-%d %H:%M')
-                      except Exception:
+                    except Exception:
                         date_fmt = datetime.now().strftime('%Y-%m-%d %H:%M')
                 else:
                     date_fmt = datetime.now().strftime('%Y-%m-%d %H:%M')
@@ -84,7 +82,7 @@ def render_news_tab(analyzed_watchlists):
         
         valid_news_count = 0
         
-        # --- PIPELINE 1: PRIMARY YAHOO FINANCE DATA STREAM ---
+        # --- PIPELINE 1: PRIMARY DATA STREAM ---
         try:
             raw_news = ticker_obj.get_news() if hasattr(ticker_obj, 'get_news') else ticker_obj.news
             if isinstance(raw_news, list) and len(raw_news) > 0:
@@ -115,7 +113,6 @@ def render_news_tab(analyzed_watchlists):
             pass
 
         # --- PIPELINE 2: DIRECT BROADBAND RSS FALLBACK STREAM ---
-        # Runs automatically if Pipeline 1 returns an empty layout list
         if valid_news_count == 0:
             fallback_news = fetch_fallback_rss_news(asset['name'])
             if fallback_news:
