@@ -2,48 +2,59 @@ import yfinance as yf
 import pandas as pd
 import numpy as np
 import ta
+import os
+
+JOURNAL_FILE = "trading_journal.csv"
 
 def compile_market_signals(df_d, df_h):
-    """Processes advanced intermarket data arrays to output precise direction targets."""
-    # Ensure flat data series parsing
-    close_h = pd.Series(df_h['Close'].values.flatten())
-    high_h = pd.Series(df_h['High'].values.flatten())
-    low_h = pd.Series(df_h['Low'].values.flatten())
+    """Processes historical structures and generates complete signal series for plotting."""
+    df_h = df_h.copy()
     
-    # 📈 Advanced Indicator Layer
-    rsi_h = ta.momentum.RSIIndicator(close=close_h, window=14).rsi().fillna(50.0).values[-1]
-    ema_h = ta.trend.EMAIndicator(close=close_h, window=200).ema_indicator().fillna(close_h.iloc[-1]).values[-1]
+    # Calculate Core Indicators across the whole series
+    df_h['RSI'] = ta.momentum.RSIIndicator(close=df_h['Close'], window=14).rsi().fillna(50.0)
+    df_h['EMA_200'] = ta.trend.EMAIndicator(close=df_h['Close'], window=200).ema_indicator().fillna(df_h['Close'])
     
-    # Advanced research layer: Adding MACD to confirm momentum direction
-    macd_obj = ta.trend.MACD(close=close_h, window_fast=12, window_slow=26, window_sign=9)
-    macd_line = macd_obj.macd().fillna(0.0).values[-1]
-    macd_signal = macd_obj.macd_signal().fillna(0.0).values[-1]
-    macd_histogram = macd_line - macd_signal
+    macd_obj = ta.trend.MACD(close=df_h['Close'], window=12, window=26, window=9)
+    df_h['MACD_Hist'] = macd_obj.macd_diff().fillna(0.0)
     
-    # Dynamic Volatility calculation (Average True Range)
-    atr_series = ta.volatility.AverageTrueRange(high=high_h, low=low_h, close=close_h, window=14).average_true_range()
-    hourly_atr = atr_series.fillna(close_h.iloc[-1] * 0.002).values[-1]
+    atr_obj = ta.volatility.AverageTrueRange(high=df_h['High'], low=df_h['Low'], close=df_h['Close'], window=14)
+    df_h['ATR'] = atr_obj.average_true_range().fillna(df_h['Close'] * 0.002)
     
-    price = float(close_h.iloc[-1])
-    recent_low = float(df_h['Low'].tail(24).min().iloc[0] if isinstance(df_h['Low'].tail(24).min(), pd.Series) else df_h['Low'].tail(24).min())
-    recent_high = float(df_h['High'].tail(24).max().iloc[0] if isinstance(df_h['High'].tail(24).max(), pd.Series) else df_h['High'].tail(24).max())
+    # Compute Rolling Extremes for boundaries
+    df_h['Recent_Low'] = df_h['Low'].rolling(window=24).min()
+    df_h['Recent_High'] = df_h['High'].rolling(window=24).max()
     
-    # Trend alignment logic
-    is_uptrend = price > ema_h
-    is_downtrend = price < ema_h
-    macd_bullish = macd_histogram > 0
-    macd_bearish = macd_histogram < 0
-
-    # Strict multi-layer confirmation formula
-    if (rsi_h < 35 or (price <= (recent_low * 1.005))) and is_uptrend and macd_bullish:
-        signal, direction = "🚀 EXECUTE BUY (GO LONG)", "LONG"
-    elif (rsi_h > 65 or (price >= (recent_high * 0.995))) and is_downtrend and macd_bearish:
-        signal, direction = "💥 EXECUTE SELL SHORT (GO SHORT)", "SHORT"
-    else:
-        signal, direction = "⏳ HOLD POSITION / PRESERVE CASH", "HOLD"
+    # Establish signals across the dataframe timeline
+    df_h['Signal'] = "HOLD"
+    
+    for i in range(len(df_h)):
+        if i < 200: continue
+        price = df_h['Close'].iloc[i]
+        rsi = df_h['RSI'].iloc[i]
+        ema = df_h['EMA_200'].iloc[i]
+        hist = df_h['MACD_Hist'].iloc[i]
+        r_low = df_h['Recent_Low'].iloc[i-1] if i > 0 else price
+        r_high = df_h['Recent_High'].iloc[i-1] if i > 0 else price
         
-    return {
-        "price": price, "hourly_rsi": rsi_h, "hourly_ema": ema_h, 
-        "hourly_atr": hourly_atr, "signal": signal, "direction": direction,
-        "is_uptrend": is_uptrend, "macd_hist": macd_histogram
+        if (rsi < 35 or (price <= (r_low * 1.005))) and (price > ema) and (hist > 0):
+            df_h['Signal'].iloc[i] = "BUY"
+        elif (rsi > 65 or (price >= (r_high * 0.995))) and (price < ema) and (hist < 0):
+            df_h['Signal'].iloc[i] = "SELL"
+            
+    return df_h
+
+# --- ENGINE JOURNAL DATABANK CORE ---
+def load_journal():
+    if os.path.exists(JOURNAL_FILE):
+        return pd.read_csv(JOURNAL_FILE)
+    return pd.DataFrame(columns=["Timestamp", "Asset", "Type", "Direction", "Entry_Price", "SL", "TP", "Status", "Profit_Loss_ZAR"])
+
+def log_trade(asset, trade_type, direction, entry, sl, tp, status="OPEN", pl=0.0):
+    df = load_journal()
+    new_row = {
+        "Timestamp": datetime.now().strftime("%Y-%m-%d %H:%M"),
+        "Asset": asset, "Type": trade_type, "Direction": direction,
+        "Entry_Price": entry, "SL": sl, "TP": tp, "Status": status, "Profit_Loss_ZAR": pl
     }
+    df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
+    df.to_csv(JOURNAL_FILE, index=False)
