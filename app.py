@@ -65,7 +65,7 @@ def compile_market_signals(df_d, df_h):
     df_h['RSI'] = ta.momentum.RSIIndicator(close=close_series, window=14).rsi().fillna(50.0).values
     df_h['EMA_200'] = ta.trend.EMAIndicator(close=close_series, window=200).ema_indicator().fillna(close_series).values
     df_h['MACD_Hist'] = ta.trend.MACD(close=close_series).macd_diff().fillna(0.0).values
-    df_h['ATR'] = ta.volatility.AverageTrueRange(high=df_h['High'], low=df_h['Low'], close=df_h['Close']).average_true_range().fillna(close_series * 0.002).values
+    df_h['ATR'] = ta.volatility.AverageTrueRange(high=df_h['High'], low=df_h['Low'], close=close_series).average_true_range().fillna(close_series * 0.002).values
     
     df_h['Recent_Low'] = df_h['Low'].rolling(window=24).min()
     df_h['Recent_High'] = df_h['High'].rolling(window=24).max()
@@ -94,7 +94,7 @@ def generate_market_hypothesis(ticker, latest, asset_name):
     
     if price > ema:
         bias = "BULLISH ACCUMULATION"
-        action = f"Look for pullbacks toward the support baseline near R{ema:.2f} if trading locally." if "ZAR" in ticker else f"Look for buy confirmations above ${ema:.2f}."
+        action = f"Look for pullbacks toward the support baseline near R{ema:.4f} if trading locally." if "ZAR" in ticker else f"Look for buy confirmations above ${ema:.4f}."
     else:
         bias = "BEARISH DISTRIBUTION"
         action = f"Expect overhead ceiling selling pressure near the 200 EMA area."
@@ -111,7 +111,7 @@ def draw_advanced_chart(df, title_name):
     fig = go.Figure()
     fig.add_trace(go.Candlestick(x=plot_df.index, open=plot_df['Open'], high=plot_df['High'], low=plot_df['Low'], close=plot_df['Close'], name="Candles"))
     fig.add_trace(go.Scatter(x=plot_df.index, y=plot_df['EMA_200'], line=dict(color='#ff9900', width=1.5), name="200 EMA"))
-    fig.update_layout(xaxis_rangeslider_visible=False, height=400, template="plotly_dark", paper_bgcolor="#0c0e14", plot_bgcolor="#0c0e14", margin=dict(l=10, r=10, t=30, b=10))
+    fig.update_layout(xaxis_rangeslider_visible=False, height=450, template="plotly_dark", paper_bgcolor="#0c0e14", plot_bgcolor="#0c0e14", margin=dict(l=10, r=10, t=30, b=10))
     return fig
 
 def load_journal():
@@ -179,7 +179,7 @@ atr_multiplier = 2.0
 # ==================== SHEET 1: TERMINAL SIGNALS MATRIX ====================
 with tab_matrix:
     if trigger_search and search_ticker in analyzed_watchlists:
-        st.success(f"🎯 Vector Core focused on searched asset: {search_ticker}")
+        st.sidebar.success(f"🎯 Vector Core focused on searched asset: {search_ticker}")
         
     st.markdown("### 📊 Active Vector Signals Matrix")
     for ticker, data in analyzed_watchlists.items():
