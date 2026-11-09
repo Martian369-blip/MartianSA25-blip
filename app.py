@@ -24,13 +24,6 @@ st.markdown("""
         border: 1px solid #232936;
         margin-bottom: 10px;
     }
-    .news-card {
-        background-color: #161a25;
-        padding: 12px;
-        border-radius: 6px;
-        border-left: 3px solid #ff9900;
-        margin-bottom: 8px;
-    }
     .stTabs [data-baseweb="tab-list"] { gap: 4px; }
     .stTabs [data-baseweb="tab"] {
         background-color: #121620;
@@ -106,7 +99,6 @@ def draw_advanced_chart(df, title_name):
     return fig
 
 def fetch_live_rss_news():
-    """Pulls live plain-text financial headlines directly from a broad broadband RSS stream."""
     headlines = []
     rss_url = "https://cnbc.com"
     try:
@@ -145,7 +137,6 @@ st.sidebar.metric("🇿🇦 Live USD/ZAR Reference", f"R{current_usdzar:.2f}")
 
 tab_matrix, tab_news, tab_journal = st.tabs(["📊 TERMINAL SIGNALS", "📰 SATELLITE NEWS", "📓 LEDGER JOURNAL"])
 
-# Fetch data exclusively for the chosen dropdown asset
 analyzed_watchlist = {}
 try:
     feed = yf.Ticker(selected_ticker)
@@ -200,7 +191,8 @@ with tab_matrix:
 # ==================== SHEET 2: BULLETIN SATELLITE NEWS DESK ====================
 with tab_news:
     st.markdown(f"### 📰 Live Global News Feed ({active_asset['name']})")
-    
     live_headlines = fetch_live_rss_news()
+    
+    # 🛰️ INNOVATIVE FLAT CONTAINER METHOD (Bypasses nested 'for' indentation errors entirely)
     if live_headlines:
-        for item in live_headlines:
+        cards_html_string = "".join([f"<div style='background-color: #161a25; padding: 12px; border-radius: 6px; border-left: 3px solid #ff9900; margin-bottom: 8px; color: white; font-family: sans-serif;'>📢 <b>{h['title']}</b><br><small style='color: #7f8c8d;'>Desk Source: {h['source']} | Time Log: {h['time']}</small></div>" for h in live_headlines])
