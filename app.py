@@ -4,184 +4,221 @@ import pandas as pd
 import numpy as np
 import ta
 import plotly.graph_objects as go
-from datetime import datetime
+import datetime
+import os
+
+# Custom layout and calculation safety fallbacks if internal modules are missing
+class EngineFallback:
+    @staticmethod
+    def calculate_rsi(df, window=14):
+        delta = df['Close'].diff()
+        gain = (delta.where(delta > 0, 0)).rolling(window=window).mean()
+        loss = (-delta.where(delta < 0, 0)).rolling(window=window).mean()
+        rs = gain / (loss + 1e-9)
+        return 100 - (100 / (1 + rs))
 
 try:
-    import satellite_news as news
-    import ledger_journal as journal
-    modules_ready = True
-except (ImportError, SyntaxError):
-    modules_ready = False
+    import engine as eng
+except ImportError:
+    eng = EngineFallback
 
-st.set_page_config(page_title="MARS_BOT V12.5 Desk", page_icon="🛸", layout="wide")
+try:
+    import layout_config as lc
+    has_layout_style = True
+except ImportError:
+    has_layout_style = False
 
-st.markdown("""
-    <style>
-    .metric-card { background-color: #121620; padding: 15px; border-radius: 10px; border: 1px solid #232936; margin-bottom: 10px; }
-    .hypothesis-box { background-color: #1a1c24; padding: 15px; border-left: 4px solid #ff9900; border-radius: 4px; margin-bottom: 15px; }
-    .news-card { background-color: #161a25; padding: 12px; border-radius: 6px; border-left: 3px solid #3498db; margin-bottom: 8px; }
-    .stTabs [data-baseweb="tab-list"] { gap: 4px; }
-    .stTabs [data-baseweb="tab"] { background-color: #121620; border: 1px solid #232936; padding: 8px 16px; }
-    </style>
-""", unsafe_allow_html=True)
+try:
+    import chart_render as cr
+    has_chart_engine = True
+except ImportError:
+    has_chart_engine = False
+
+# Initialize premium terminal view window layout
+st.set_page_config(page_title="MARS_BOT V17.0 Pro Desk", page_icon="🛸", layout="wide")
+
+PERSISTENT_FILE = "ledger_vault.csv"
+
+def load_persistent_ledger():
+    if os.path.exists(PERSISTENT_FILE):
+        try:
+            df = pd.read_csv(PERSISTENT_FILE)
+            if not df.empty: return df
+        except Exception: pass
+    return pd.DataFrame(columns=["Timestamp", "Asset", "Action", "Price", "Matrix RSI", "Status"])
+
+def save_persistent_ledger(df):
+    df.to_csv(PERSISTENT_FILE, index=False)
+
+# Robust Session Matrix Memory Initializations
+if "journal_db" not in st.session_state: st.session_state["journal_db"] = load_persistent_ledger()
+if "cached_target_asset" not in st.session_state: st.session_state["cached_target_asset"] = "USDZAR=X"
+if "cached_display_name" not in st.session_state: st.session_state["cached_display_name"] = "USD/ZAR (US Dollar)"
+if "price" not in st.session_state: st.session_state["price"] = 18.2540
+if "direction" not in st.session_state: st.session_state["direction"] = "⏳ HOLD / STANDBY"
+if "color" not in st.session_state: st.session_state["color"] = "#757575"
+if "m15_rsi" not in st.session_state: st.session_state["m15_rsi"] = 50.0
+if "h1_rsi" not in st.session_state: st.session_state["h1_rsi"] = 50.0
+if "h4_rsi" not in st.session_state: st.session_state["h4_rsi"] = 50.0
+if "stop_loss" not in st.session_state: st.session_state["stop_loss"] = 0.0
+if "take_profit" not in st.session_state: st.session_state["take_profit"] = 0.0
 
 st.sidebar.markdown("### 🛡️ Capital Defense Deck")
 account_balance_zar = st.sidebar.number_input("Wallet Capital Base (ZAR)", min_value=10.0, value=500.00, step=50.0)
 max_risk_allowed_pct = st.sidebar.slider("Maximum Trade Allocation Risk (%)", 1.0, 10.0, 5.0)
 
-# ==================== THE EXPANDED 30+ GLOBAL MARKET CATALOG ====================
-st.sidebar.markdown("### 🌐 Asset Hub Selector")
-
-market_options = {
-    # 🇿🇦 South African Currency Crosses (Forex Majors)
-    "USDZAR=X": {"name": "US Dollar / SA Rand", "type": "FX_ZAR"},
-    "EURZAR=X": {"name": "Euro / SA Rand Cross", "type": "FX_ZAR"},
-    "GBPZAR=X": {"name": "British Pound / SA Rand Cross", "type": "FX_ZAR"},
-    "AUDZAR=X": {"name": "Australian Dollar / SA Rand", "type": "FX_ZAR"},
-    "JPYZAR=X": {"name": "Japanese Yen / SA Rand Cross", "type": "FX_ZAR"},
-    
-    # 🌍 Global Forex Majors
-    "GBPUSD=X": {"name": "British Pound / US Dollar", "type": "FX"},
-    "EURUSD=X": {"name": "Euro / US Dollar", "type": "FX"},
-    "USDJPY=X": {"name": "US Dollar / Japanese Yen", "type": "FX"},
-    "AUDUSD=X": {"name": "Australian Dollar / US Dollar", "type": "FX"},
-    "USDCAD=X": {"name": "US Dollar / Canadian Dollar", "type": "FX"},
-    
-    # 🛢️ Expanded Global Commodities Suite
-    "GC=F":     {"name": "Gold Ounce Futures", "type": "COMMODITY"},
-    "SI=F":     {"name": "Silver Ounce Futures", "type": "COMMODITY"},
-    "CL=F":     {"name": "Crude Oil (WTI Futures)", "type": "COMMODITY"},
-    "BZ=F":     {"name": "Brent Crude Oil Futures", "type": "COMMODITY"},
-    "PL=F":     {"name": "Platinum Futures", "type": "COMMODITY"},
-    "HG=F":     {"name": "Copper Futures", "type": "COMMODITY"},
-    "NG=F":     {"name": "Natural Gas Futures", "type": "COMMODITY"},
-    
-    # 🇿🇦 Johannesburg Stock Exchange (JSE Leaders)
-    "SOL.JO":   {"name": "Sasol Limited (JSE)", "type": "EQUITY"},
-    "FSR.JO":   {"name": "FirstRand Bank (JSE)", "type": "EQUITY"},
-    "SBK.JO":   {"name": "Standard Bank Group (JSE)", "type": "EQUITY"},
-    "ANG.JO":   {"name": "Anglogold Ashanti (JSE)", "type": "EQUITY"},
-    "IMP.JO":   {"name": "Impala Platinum (JSE)", "type": "EQUITY"},
-    
-    # 🇺🇸 Wall Street Blue Chips & Crypto
-    "AAPL":     {"name": "Apple Inc. (Wall Street)", "type": "EQUITY"},
-    "NVDA":     {"name": "NVIDIA Corp (Wall Street)", "type": "EQUITY"},
-    "TSLA":     {"name": "Tesla Motors (Wall Street)", "type": "EQUITY"},
-    "BTC-USD":  {"name": "Bitcoin / US Dollar", "type": "EQUITY"},
-    "ETH-USD":  {"name": "Ethereum / US Dollar", "type": "EQUITY"},
-    
-    # 📉 Macro Stock Indices
-    "^NDX":     {"name": "US Tech 100 (Nasdaq)", "type": "INDEX"},
-    "^DJI":     {"name": "Wall Street 30 (Dow Jones)", "type": "INDEX"},
-    "^GSPC":    {"name": "S&P 500 Index (US Market)", "type": "INDEX"},
-    "^J203.JO": {"name": "JSE All Share Index (SA)", "type": "INDEX"}
+# Master 60+ Unified Asset Catalog Mapping Node
+ig_name_map = {
+    "USDZAR=X": "USD/ZAR (US Dollar)",
+    "EURZAR=X": "EUR/ZAR (Euro)",
+    "GBPZAR=X": "GBP/ZAR (British Pound)",
+    "AUDZAR=X": "AUD/ZAR (Aussie Dollar)",
+    "JPYZAR=X": "JPY/ZAR (Japanese Yen)",
+    "CADZAR=X": "CAD/ZAR (Canadian Dollar)",
+    "CHFZAR=X": "CHF/ZAR (Swiss Franc)",
+    "NZDZAR=X": "NZD/ZAR (Kiwi Dollar)",
+    "GBPUSD=X": "GBP/USD (Cable)",
+    "EURUSD=X": "EUR/USD (Fiber)",
+    "USDJPY=X": "USD/JPY (Ninja)",
+    "AUDUSD=X": "AUD/USD (Aussie)",
+    "USDCAD=X": "USD/CAD (Loonie)",
+    "USDCHF=X": "USD/CHF (Swissie)",
+    "NZDUSD=X": "NZD/USD (Kiwi)",
+    "EURGBP=X": "EUR/GBP (Chunnel)",
+    "EURJPY=X": "EUR/JPY",
+    "GBPJPY=X": "GBP/JPY (Guppy)",
+    "GC=F":     "Gold (Ounce Futures)",
+    "SI=F":     "Silver (Ounce Futures)",
+    "PL=F":     "Platinum (Ounce Futures)",
+    "PA=F":     "Palladium (Ounce Futures)",
+    "CL=F":     "Crude Oil (WTI Futures)",
+    "BZ=F":     "Brent Crude Oil Futures",
+    "NG=F":     "Natural Gas Futures",
+    "HG=F":     "Copper Futures",
+    "CC=F":     "Cocoa Futures",
+    "KC=F":     "Coffee Futures",
+    "SOL.JO":   "Sasol Ltd (JSE:SOL)",
+    "FSR.JO":   "FirstRand Ltd (JSE:FSR)",
+    "SBK.JO":   "Standard Bank Group (JSE:SBK)",
+    "ANG.JO":   "Anglogold Ashanti (JSE:ANG)",
+    "IMP.JO":   "Impala Platinum (JSE:IMP)",
+    "NPN.JO":   "Naspers Ltd (JSE:NPN)",
+    "PRX.JO":   "Prosus NV (JSE:PRX)",
+    "BTI.JO":   "British American Tobacco (JSE:BTI)",
+    "AGL.JO":   "Anglo American plc (JSE:AGL)",
+    "GFI.JO":   "Gold Fields Ltd (JSE:GFI)",
+    "SLM.JO":   "Sanlam Ltd (JSE:SLM)",
+    "ABG.JO":   "Absa Group Ltd (JSE:ABG)",
+    "NED.JO":   "Nedbank Group (JSE:NED)",
+    "MTN.JO":   "MTN Group Ltd (JSE:MTN)",
+    "VOD.JO":   "Vodacom Group (JSE:VOD)",
+    "AAPL":     "Apple Inc. (NASDAQ)",
+    "NVDA":     "NVIDIA Corporation (NASDAQ)",
+    "TSLA":     "Tesla Motors Inc. (NASDAQ)",
+    "MSFT":     "Microsoft Corp. (NASDAQ)",
+    "AMZN":     "Amazon.com Inc. (NASDAQ)",
+    "META":     "Meta Platforms (NASDAQ)",
+    "GOOGL":    "Alphabet Inc. (NASDAQ)",
+    "AMD":      "Advanced Micro Devices (NASDAQ)",
+    "NFLX":     "Netflix Inc. (NASDAQ)",
+    "BTC-USD":  "Bitcoin / US Dollar",
+    "ETH-USD":  "Ethereum / US Dollar",
+    "SOL-USD":  "Solana / US Dollar",
+    "BNB-USD":  "Binance Coin / US Dollar",
+    "XRP-USD":  "Ripple / US Dollar",
+    "^GSPC":    "S&P 500 Index (US Market)",
+    "^NDX":     "NASDAQ 100 (US Tech)",
+    "^DJI":     "Dow Jones Industrial 30",
+    "^FTSE":    "FTSE 100 Index (London)",
+    "^GDAXI":   "DAX Performance Index (Germany)",
+    "^N225":    "Nikkei 225 Index (Japan)",
+    "^J203.JO": "JSE All Share Index (South Africa)"
 }
 
-selected_ticker = st.sidebar.selectbox(
-    "Choose Market Vector to Analyze:",
-    options=list(market_options.keys()),
-    format_func=lambda x: f"{market_options[x]['name']} ({x})"
-)
+display_options = list(ig_name_map.values())
 
-active_asset = market_options[selected_ticker]
+col_search, col_trigger = st.columns([0.75, 0.25])
+with col_search:
+    try: current_index = display_options.index(st.session_state["cached_display_name"])
+    except ValueError: current_index = 0
+    chosen_display = st.selectbox("🔍 MARKET VECTOR SELECTOR:", options=display_options, index=current_index, label_visibility="collapsed")
 
-# ==================== ANALYTICS PROCESSING NODES ====================
-def compile_market_signals(df_d, df_h):
+reverse_map = {v: k for k, v in ig_name_map.items()}
+selected_ticker = reverse_map.get(chosen_display, "USDZAR=X")
+
+with col_trigger:
+    search_activated = st.button("🛰️ QUANT SCAN")
+
+# ==================== ADVANCED CONFLUENCE ANALYTICS ENGINE ====================
+def deep_technical_analysis(df_d, df_h):
     df_h = df_h.copy()
     close_series = pd.Series(df_h['Close'].values.flatten())
+    
+    # 1. Macro Trend Mapping (Daily)
+    d_close = pd.Series(df_d['Close'].values.flatten())
+    daily_ema_50 = ta.trend.EMAIndicator(close=d_close, window=50).ema_indicator().fillna(d_close).iloc[-1]
+    macro_trend_bullish = float(d_close.iloc[-1]) > float(daily_ema_50)
+
+    # 2. Complete Hourly Indicator Formulation
     df_h['RSI'] = ta.momentum.RSIIndicator(close=close_series, window=14).rsi().fillna(50.0).values
     df_h['EMA_200'] = ta.trend.EMAIndicator(close=close_series, window=200).ema_indicator().fillna(close_series).values
-    df_h['MACD_Hist'] = ta.trend.MACD(close=close_series).macd_diff().fillna(0.0).values
-    df_h['ATR'] = ta.volatility.AverageTrueRange(high=df_h['High'], low=df_h['Low'], close=df_h['Close']).average_true_range().fillna(close_series * 0.002).values
-    df_h['Signal'] = "HOLD"
+    df_h['ATR'] = ta.volatility.AverageTrueRange(high=df_h['High'], low=df_h['Low'], close=df_h['Close'], window=14).average_true_range().fillna(close_series * 0.002).values
     
-    for i in range(len(df_h)):
-        if i < 200: continue
-        price = float(close_series.iloc[i])
-        if (df_h['RSI'].iloc[i] < 45 or df_h['MACD_Hist'].iloc[i] > 0) and (price > df_h['EMA_200'].iloc[i]):
-            df_h.loc[df_h.index[i], 'Signal'] = "BUY"
-        elif (df_h['RSI'].iloc[i] > 55 or df_h['MACD_Hist'].iloc[i] < 0) and (price < df_h['EMA_200'].iloc[i]):
-            df_h.loc[df_h.index[i], 'Signal'] = "SELL"
-    return df_h
+    macd_obj = ta.trend.MACD(close=close_series)
+    df_h['MACD_Hist'] = macd_obj.macd_diff().fillna(0.0).values
+    
+    bb_obj = ta.volatility.BollingerBands(close=close_series, window=20, window_dev=2)
+    df_h['BB_High'] = bb_obj.bollinger_hband().values
+    df_h['BB_Low'] = bb_obj.bollinger_lband().values
 
-def draw_advanced_chart(df, title_name):
-    plot_df = df.tail(100)
-    fig = go.Figure()
-    fig.add_trace(go.Candlestick(x=plot_df.index, open=plot_df['Open'], high=plot_df['High'], low=plot_df['Low'], close=plot_df['Close'], name="Candles"))
-    fig.add_trace(go.Scatter(x=plot_df.index, y=plot_df['EMA_200'], line=dict(color='#ff9900', width=1.5), name="200 EMA"))
-    fig.update_layout(xaxis_rangeslider_visible=False, height=420, template="plotly_dark", paper_bgcolor="#0c0e14", plot_bgcolor="#0c0e14", margin=dict(l=10, r=10, t=30, b=10))
-    return fig
-
-try:
-    current_usdzar = float(yf.Ticker("USDZAR=X").history(period="1mo", interval="1d")['Close'].iloc[-1])
-except Exception:
-    current_usdzar = 18.35
-st.sidebar.metric("🇿🇦 Live USD/ZAR Reference", f"R{current_usdzar:.2f}")
-
-tab_matrix, tab_news, tab_journal = st.tabs(["📊 TERMINAL SIGNALS", "📰 SATELLITE NEWS", "📓 LEDGER JOURNAL"])
-
-analyzed_watchlist = {}
-try:
-    feed = yf.Ticker(selected_ticker)
-    df_d = feed.history(period="3mo", interval="1d")
-    df_h = feed.history(period="1mo", interval="1h")
-    if not df_d.empty and not df_h.empty:
-        analyzed_watchlist[selected_ticker] = {"asset": active_asset, "df": compile_market_signals(df_d, df_h), "ticker_obj": feed}
-except Exception:
-    st.error("⚠️ Error loading live technical data feeds.")
-
-# ==================== SHEET 1: TERMINAL SIGNALS MATRIX ====================
-with tab_matrix:
-    st.markdown(f"### 📊 Active Vector Signal: {active_asset['name']}")
-    if selected_ticker in analyzed_watchlist:
-        data = analyzed_watchlist[selected_ticker]
-        df_analyzed, latest = data["df"], data["df"].iloc[-1]
-        signal_text = "⏳ HOLD" if latest['Signal'] == "HOLD" else f"🔥 {latest['Signal']}"
+    # Determine structural swings across last 48 hourly candles
+    recent_floor = float(df_h['Low'].tail(48).min())
+    recent_ceiling = float(df_h['High'].tail(48).max())
+    
+    latest = df_h.iloc[-1]
+    price = float(latest['Close'])
+    atr = float(latest['ATR'])
+    
+    direction, color = "⏳ HOLD / STANDBY", "#757575"
+    sl, tp = 0.0, 0.0
+    
+    # STRICT CONFIRMATION SIGNALS NODE
+    # Bullish: Macro Trend Up AND Price near BB Low AND RSI Oversold AND MACD Turning positive
+    if macro_trend_bullish and (price < latest['BB_Low'] * 1.01 or latest['RSI'] < 40) and latest['MACD_Hist'] > 0 and price > latest['EMA_200']:
+        direction, color = "🚀 CONVERGENT BUY", "#4CAF50"
+        sl = recent_floor - (atr * 0.5)
+        tp = price + (abs(price - sl) * 2.0)
         
-        st.markdown(f"**Current Status Horizon:** {signal_text}")
-        st.plotly_chart(draw_advanced_chart(df_analyzed, active_asset['name']), use_container_width=True)
+    # Bearish: Macro Trend Down AND Price near BB High AND RSI Overbought AND MACD Turning negative
+    elif not macro_trend_bullish and (price > latest['BB_High'] * 0.99 or latest['RSI'] > 60) and latest['MACD_Hist'] < 0 and price < latest['EMA_200']:
+        direction, color = "💥 CONVERGENT SELL", "#E53935"
+        sl = recent_ceiling + (atr * 0.5)
+        tp = price - (abs(sl - price) * 2.0)
         
-        col1, col2 = st.columns(2)
-        with col1:
-            st.metric("Spot Price", f"R{latest['Close']:.4f}" if "ZAR" in selected_ticker or ".JO" in selected_ticker else f"${latest['Close']:.4f}" if active_asset["type"] == "FX" else f"${latest['Close']:.2f}")
-            st.metric("RSI Oscillator", f"{latest['RSI']:.1f}")
-        with col2:
-            sl_dist = float(latest['ATR']) * 2.0
-            stop_loss = float(latest['Close'] - sl_dist if latest['Signal'] != "SELL" else latest['Close'] + sl_dist)
-            take_profit = float(latest['Close'] + (sl_dist * 2.0) if latest['Signal'] != "SELL" else latest['Close'] - (sl_dist * 2.0))
-            mult = 10000 if active_asset["type"] in ["FX_ZAR", "FX"] else 1
-            pts_sl = abs(latest['Close'] - stop_loss) * mult
-            
-            if active_asset["type"] == "FX_ZAR" or ".JO" in selected_ticker:
-                real_zar_risk = pts_sl * 0.10
-            elif active_asset["type"] == "FX":
-                real_zar_risk = (pts_sl * 0.01) * current_usdzar
-            else:
-                real_zar_risk = (pts_sl * 0.10) * current_usdzar
-                
-            risk_pct = (real_zar_risk / account_balance_zar) * 100
-            
-            st.subheader("🎯 Live Parameter Setup")
-            st.write(f"🛑 **Suggested SL Price:** {stop_loss:.4f} (`{pts_sl:.1f} pts away`)")
-            st.write(f"🏁 **Suggested TP Price:** {take_profit:.4f}")
-            st.write(f"🛡️ **Capital Exposure Risk:** R{real_zar_risk:.2f} ({risk_pct:.1f}% of capital)")
-            
-            if risk_pct > max_risk_allowed_pct:
-                st.error("⚠️ RISK WARNING: Exposure parameters exceed safe limits. Skip entry execution.")
-            else:
-                st.success("✅ RISK APPROVED: Asset conditions match small account scaling metrics.")
+    return direction, color, price, float(latest['RSI']), sl, tp, df_h
 
-# ==================== SHEET 2: LINKED SATELLITE MODULE ====================
-with tab_news:
-    if modules_ready:
-        news.render_news_tab(analyzed_watchlist)
-    else:
-        st.info("Syncing satellite news modules...")
+if search_activated or st.session_state["cached_target_asset"] != selected_ticker:
+    st.session_state["cached_target_asset"] = selected_ticker
+    st.session_state["cached_display_name"] = chosen_display
+    try:
+        with st.spinner("Executing Full Technical Alignment Sweep..."):
+            df_d = yf.Ticker(selected_ticker).history(period="6mo", interval="1d")
+            df_h = yf.Ticker(selected_ticker).history(period="1mo", interval="1h")
+            
+            if not df_d.empty and not df_h.empty:
+                direction, color, price, rsi, sl, tp, df_analyzed = deep_technical_analysis(df_d, df_h)
+                st.session_state["direction"] = direction
+                st.session_state["color"] = color
+                st.session_state["price"] = price
+                st.session_state["h1_rsi"] = rsi
+                st.session_state["stop_loss"] = sl
+                st.session_state["take_profit"] = tp
+    except Exception as e:
+        st.sidebar.error(f"Matrix Engine Sync Warning: {str(e)}")
 
-# ==================== SHEET 3: LINKED LEDGER MODULE ====================
-with tab_journal:
-    if modules_ready:
-        ledger_map = {selected_ticker: active_asset}
-        journal.render_journal_tab(ledger_map, current_usdzar)
-    else:
-        st.info("Syncing transaction ledger modules...")
+# ==================== INTERFACE LAYER ====================
+st.sidebar.markdown("<h3 style='color:#4CAF50 !important; font-weight:900;'>☰ MAIN CORE</h3>", unsafe_allow_html=True)
+navigation_sheets = ["📊  TERMINAL SIGNALS", "🕹️  LEDGER JOURNAL"]
+page_select = st.sidebar.radio("CHOOSE MODULE SHEET:", options=navigation_sheets)
+
+if page_select == "📊  TERMINAL SIGNALS":
