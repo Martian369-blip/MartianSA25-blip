@@ -35,7 +35,7 @@ except ImportError:
     has_chart_engine = False
 
 # Initialize premium terminal view window layout
-st.set_page_config(page_title="MARS_BOT V18.5 God Mode", page_icon="🛸", layout="wide")
+st.set_page_config(page_title="MARS_BOT V19.0 Production Desk", page_icon="🛸", layout="wide")
 
 if has_layout_style:
     try: lc.load_ig_style()
@@ -56,14 +56,15 @@ def save_persistent_ledger(df):
 
 # Robust Session Matrix Memory Initializations
 if "journal_db" not in st.session_state: st.session_state["journal_db"] = load_persistent_ledger()
-if "cached_target_asset" not in st.session_state: st.session_state["cached_target_asset"] = ""
-if "cached_display_name" not in st.session_state: st.session_state["cached_display_name"] = ""
-if "price" not in st.session_state: st.session_state["price"] = 16.4253
-if "direction" not in st.session_state: st.session_state["direction"] = "⏳ INITIALIZING POSITION VECTOR"
+if "cached_target_asset" not in st.session_state: st.session_state["cached_target_asset"] = "USDZAR=X"
+if "cached_display_name" not in st.session_state: st.session_state["cached_display_name"] = "USD/ZAR (US Dollar)"
+if "price" not in st.session_state: st.session_state["price"] = 18.4253
+if "direction" not in st.session_state: st.session_state["direction"] = "⏳ HOLD / STANDBY"
 if "color" not in st.session_state: st.session_state["color"] = "#757575"
 if "h1_rsi" not in st.session_state: st.session_state["h1_rsi"] = 50.0
 if "stop_loss" not in st.session_state: st.session_state["stop_loss"] = 0.0
 if "take_profit" not in st.session_state: st.session_state["take_profit"] = 0.0
+if "first_run" not in st.session_state: st.session_state["first_run"] = True
 
 st.sidebar.markdown("### 🛡️ Capital Defense Deck")
 account_balance_zar = st.sidebar.number_input("Wallet Capital Base (ZAR)", min_value=10.0, value=500.00, step=50.0)
@@ -195,14 +196,15 @@ def deep_technical_analysis(df_d, df_h):
         
     return direction, color, price, float(latest['RSI']), sl, tp, df_h
 
-# FIXED AUTO-TRIGGER RUN TIME: Checks empty memory string to parse live indicators directly on loading
-if search_activated or st.session_state["cached_target_asset"] == "" or st.session_state["cached_target_asset"] != selected_ticker:
+# FIXED PARSING CORE: Added a session 'first_run' checker variable to enforce background download immediately
+if search_activated or st.session_state["first_run"] or st.session_state["cached_target_asset"] != selected_ticker:
     st.session_state["cached_target_asset"] = selected_ticker
     st.session_state["cached_display_name"] = chosen_display
+    st.session_state["first_run"] = False
     try:
         with st.spinner("Executing Full Technical Alignment Sweep..."):
-            df_d = yf.Ticker(selected_ticker).history(period="6mo", interval="1d")
-            df_h = yf.Ticker(selected_ticker).history(period="1mo", interval="1h")
+            df_d = yf.Ticker(st.session_state["cached_target_asset"]).history(period="6mo", interval="1d")
+            df_h = yf.Ticker(st.session_state["cached_target_asset"]).history(period="1mo", interval="1h")
             
             if not df_d.empty and not df_h.empty:
                 direction, color, price, rsi, sl, tp, df_analyzed = deep_technical_analysis(df_d, df_h)
@@ -223,7 +225,3 @@ page_select = st.sidebar.radio("CHOOSE MODULE SHEET:", options=navigation_sheets
 if page_select == "📊  TERMINAL SIGNALS":
     st.markdown(f"#### 📡 Telemetry Feed Workspace: <span style='color:#4CAF50;'>{st.session_state['cached_display_name']}</span>", unsafe_allow_html=True)
     
-    is_zar = "ZAR" in st.session_state['cached_target_asset'] or ".JO" in st.session_state['cached_target_asset']
-    c_prefix = "R " if is_zar else "$ "
-    
-    spot_str = f"{c_prefix}{st.session_state['price']:.4f}"
