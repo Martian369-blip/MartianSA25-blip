@@ -35,7 +35,11 @@ except ImportError:
     has_chart_engine = False
 
 # Initialize premium terminal view window layout
-st.set_page_config(page_title="MARS_BOT V17.0 Pro Desk", page_icon="🛸", layout="wide")
+st.set_page_config(page_title="MARS_BOT V17.2 Pro Desk", page_icon="🛸", layout="wide")
+
+if has_layout_style:
+    try: lc.load_ig_style()
+    except Exception: pass
 
 PERSISTENT_FILE = "ledger_vault.csv"
 
@@ -57,9 +61,7 @@ if "cached_display_name" not in st.session_state: st.session_state["cached_displ
 if "price" not in st.session_state: st.session_state["price"] = 18.2540
 if "direction" not in st.session_state: st.session_state["direction"] = "⏳ HOLD / STANDBY"
 if "color" not in st.session_state: st.session_state["color"] = "#757575"
-if "m15_rsi" not in st.session_state: st.session_state["m15_rsi"] = 50.0
 if "h1_rsi" not in st.session_state: st.session_state["h1_rsi"] = 50.0
-if "h4_rsi" not in st.session_state: st.session_state["h4_rsi"] = 50.0
 if "stop_loss" not in st.session_state: st.session_state["stop_loss"] = 0.0
 if "take_profit" not in st.session_state: st.session_state["take_profit"] = 0.0
 
@@ -147,19 +149,17 @@ reverse_map = {v: k for k, v in ig_name_map.items()}
 selected_ticker = reverse_map.get(chosen_display, "USDZAR=X")
 
 with col_trigger:
-    search_activated = st.button("🛰️ QUANT SCAN")
+    search_activated = st.button("🛰 nighttime SCAN")
 
 # ==================== ADVANCED CONFLUENCE ANALYTICS ENGINE ====================
 def deep_technical_analysis(df_d, df_h):
     df_h = df_h.copy()
     close_series = pd.Series(df_h['Close'].values.flatten())
     
-    # 1. Macro Trend Mapping (Daily EMA-50 Filter)
     d_close = pd.Series(df_d['Close'].values.flatten())
     daily_ema_50 = ta.trend.EMAIndicator(close=d_close, window=50).ema_indicator().fillna(d_close).iloc[-1]
     macro_trend_bullish = float(d_close.iloc[-1]) > float(daily_ema_50)
 
-    # 2. Complete Hourly Indicator Formulation
     df_h['RSI'] = ta.momentum.RSIIndicator(close=close_series, window=14).rsi().fillna(50.0).values
     df_h['EMA_200'] = ta.trend.EMAIndicator(close=close_series, window=200).ema_indicator().fillna(close_series).values
     df_h['ATR'] = ta.volatility.AverageTrueRange(high=df_h['High'], low=df_h['Low'], close=df_h['Close'], window=14).average_true_range().fillna(close_series * 0.002).values
@@ -171,7 +171,6 @@ def deep_technical_analysis(df_d, df_h):
     df_h['BB_High'] = bb_obj.bollinger_hband().values
     df_h['BB_Low'] = bb_obj.bollinger_lband().values
 
-    # Determine structural swings across last 48 hourly candles
     recent_floor = float(df_h['Low'].tail(48).min())
     recent_ceiling = float(df_h['High'].tail(48).max())
     
@@ -182,7 +181,6 @@ def deep_technical_analysis(df_d, df_h):
     direction, color = "⏳ HOLD / STANDBY", "#757575"
     sl, tp = 0.0, 0.0
     
-    # STRICT STRATEGIC CONFLUENCE ENGINE
     if macro_trend_bullish and (price < latest['BB_Low'] * 1.01 or latest['RSI'] < 40) and latest['MACD_Hist'] > 0 and price > latest['EMA_200']:
         direction, color = "🚀 CONVERGENT BUY", "#4CAF50"
         sl = recent_floor - (atr * 0.5)
@@ -216,10 +214,15 @@ if search_activated or st.session_state["cached_target_asset"] != selected_ticke
 
 # ==================== INTERFACE LAYER ====================
 st.sidebar.markdown("<h3 style='color:#4CAF50 !important; font-weight:900;'>☰ MAIN CORE</h3>", unsafe_allow_html=True)
-navigation_sheets = ["📊  TERMINAL SIGNALS", "🕹️  LEDGER JOURNAL"]
+navigation_sheets = ["📊  TERMINAL SIGNALS", "📡  SATELLITE NEWS", "🕹️  LEDGER JOURNAL"]
 page_select = st.sidebar.radio("CHOOSE MODULE SHEET:", options=navigation_sheets)
 
 if page_select == "📊  TERMINAL SIGNALS":
     st.markdown(f"#### 📡 Telemetry Feed Workspace: <span style='color:#4CAF50;'>{st.session_state['cached_display_name']}</span>", unsafe_allow_html=True)
     
     is_zar = "ZAR" in st.session_state['cached_target_asset'] or ".JO" in st.session_state['cached_target_asset']
+    c_prefix = "R " if is_zar else "$ "
+    
+    # Decoupled Payload Dashboard Panel
+    html_payload = f"""
+    <div style='background-color: #121620; border: 1px solid #232936; padding: 20px; border-radius: 8px; margin-bottom: 20px;'>
