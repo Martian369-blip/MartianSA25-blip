@@ -35,7 +35,7 @@ except ImportError:
     has_chart_engine = False
 
 # Initialize premium terminal view window layout
-st.set_page_config(page_title="MARS_BOT V18.0 God Mode", page_icon="🛸", layout="wide")
+st.set_page_config(page_title="MARS_BOT V18.5 God Mode", page_icon="🛸", layout="wide")
 
 if has_layout_style:
     try: lc.load_ig_style()
@@ -56,10 +56,10 @@ def save_persistent_ledger(df):
 
 # Robust Session Matrix Memory Initializations
 if "journal_db" not in st.session_state: st.session_state["journal_db"] = load_persistent_ledger()
-if "cached_target_asset" not in st.session_state: st.session_state["cached_target_asset"] = "USDZAR=X"
-if "cached_display_name" not in st.session_state: st.session_state["cached_display_name"] = "USD/ZAR (US Dollar)"
-if "price" not in st.session_state: st.session_state["price"] = 18.2540
-if "direction" not in st.session_state: st.session_state["direction"] = "⏳ HOLD / STANDBY"
+if "cached_target_asset" not in st.session_state: st.session_state["cached_target_asset"] = ""
+if "cached_display_name" not in st.session_state: st.session_state["cached_display_name"] = ""
+if "price" not in st.session_state: st.session_state["price"] = 16.4253
+if "direction" not in st.session_state: st.session_state["direction"] = "⏳ INITIALIZING POSITION VECTOR"
 if "color" not in st.session_state: st.session_state["color"] = "#757575"
 if "h1_rsi" not in st.session_state: st.session_state["h1_rsi"] = 50.0
 if "stop_loss" not in st.session_state: st.session_state["stop_loss"] = 0.0
@@ -141,8 +141,10 @@ display_options = list(ig_name_map.values())
 
 col_search, col_trigger = st.columns([0.75, 0.25])
 with col_search:
-    try: current_index = display_options.index(st.session_state["cached_display_name"])
-    except ValueError: current_index = 0
+    try: 
+        current_index = display_options.index(st.session_state["cached_display_name"])
+    except ValueError: 
+        current_index = 0
     chosen_display = st.selectbox("🔍 MARKET VECTOR SELECTOR:", options=display_options, index=current_index, label_visibility="collapsed")
 
 reverse_map = {v: k for k, v in ig_name_map.items()}
@@ -193,7 +195,8 @@ def deep_technical_analysis(df_d, df_h):
         
     return direction, color, price, float(latest['RSI']), sl, tp, df_h
 
-if search_activated or st.session_state["cached_target_asset"] != selected_ticker:
+# FIXED AUTO-TRIGGER RUN TIME: Checks empty memory string to parse live indicators directly on loading
+if search_activated or st.session_state["cached_target_asset"] == "" or st.session_state["cached_target_asset"] != selected_ticker:
     st.session_state["cached_target_asset"] = selected_ticker
     st.session_state["cached_display_name"] = chosen_display
     try:
@@ -224,7 +227,3 @@ if page_select == "📊  TERMINAL SIGNALS":
     c_prefix = "R " if is_zar else "$ "
     
     spot_str = f"{c_prefix}{st.session_state['price']:.4f}"
-    direction_str = str(st.session_state['direction'])
-    color_str = str(st.session_state['color'])
-    h1_rsi_str = f"{st.session_state['h1_rsi']:.1f}"
-    
