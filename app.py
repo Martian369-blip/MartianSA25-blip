@@ -2,44 +2,12 @@ import streamlit as st
 import yfinance as yf
 import pandas as pd
 import numpy as np
-import ta
 import plotly.graph_objects as go
 import datetime
 import os
 
-# Custom layout and calculation safety fallbacks if internal modules are missing
-class EngineFallback:
-    @staticmethod
-    def calculate_rsi(df, window=14):
-        delta = df['Close'].diff()
-        gain = (delta.where(delta > 0, 0)).rolling(window=window).mean()
-        loss = (-delta.where(delta < 0, 0)).rolling(window=window).mean()
-        rs = gain / (loss + 1e-9)
-        return 100 - (100 / (1 + rs))
-
-try:
-    import engine as eng
-except ImportError:
-    eng = EngineFallback
-
-try:
-    import layout_config as lc
-    has_layout_style = True
-except ImportError:
-    has_layout_style = False
-
-try:
-    import chart_render as cr
-    has_chart_engine = True
-except ImportError:
-    has_chart_engine = False
-
 # Initialize premium terminal view window layout
-st.set_page_config(page_title="MARS_BOT V19.0 Production Desk", page_icon="🛸", layout="wide")
-
-if has_layout_style:
-    try: lc.load_ig_style()
-    except Exception: pass
+st.set_page_config(page_title="MARS_BOT V20.0 Sovereign Desk", page_icon="🛸", layout="wide")
 
 PERSISTENT_FILE = "ledger_vault.csv"
 
@@ -64,7 +32,6 @@ if "color" not in st.session_state: st.session_state["color"] = "#757575"
 if "h1_rsi" not in st.session_state: st.session_state["h1_rsi"] = 50.0
 if "stop_loss" not in st.session_state: st.session_state["stop_loss"] = 0.0
 if "take_profit" not in st.session_state: st.session_state["take_profit"] = 0.0
-if "first_run" not in st.session_state: st.session_state["first_run"] = True
 
 st.sidebar.markdown("### 🛡️ Capital Defense Deck")
 account_balance_zar = st.sidebar.number_input("Wallet Capital Base (ZAR)", min_value=10.0, value=500.00, step=50.0)
@@ -142,10 +109,8 @@ display_options = list(ig_name_map.values())
 
 col_search, col_trigger = st.columns([0.75, 0.25])
 with col_search:
-    try: 
-        current_index = display_options.index(st.session_state["cached_display_name"])
-    except ValueError: 
-        current_index = 0
+    try: current_index = display_options.index(st.session_state["cached_display_name"])
+    except ValueError: current_index = 0
     chosen_display = st.selectbox("🔍 MARKET VECTOR SELECTOR:", options=display_options, index=current_index, label_visibility="collapsed")
 
 reverse_map = {v: k for k, v in ig_name_map.items()}
@@ -154,26 +119,47 @@ selected_ticker = reverse_map.get(chosen_display, "USDZAR=X")
 with col_trigger:
     search_activated = st.button("🛰️ QUANT SCAN")
 
-# ==================== ADVANCED CONFLUENCE ANALYTICS ENGINE ====================
+# ==================== NATIVE MATHEMATICAL ENGINE MATRIX ====================
+def calculate_native_rsi(series, period=14):
+    delta = series.diff()
+    gain = (delta.where(delta > 0, 0)).rolling(window=period).mean()
+    loss = (-delta.where(delta < 0, 0)).rolling(window=period).mean()
+    rs = gain / (loss + 1e-9)
+    return 100 - (100 / (1 + rs))
+
 def deep_technical_analysis(df_d, df_h):
     df_h = df_h.copy()
-    close_series = pd.Series(df_h['Close'].values.flatten())
     
-    d_close = pd.Series(df_d['Close'].values.flatten())
-    daily_ema_50 = ta.trend.EMAIndicator(close=d_close, window=50).ema_indicator().fillna(d_close).iloc[-1]
-    macro_trend_bullish = float(d_close.iloc[-1]) > float(daily_ema_50)
+    # 1. Macro Daily Filter (Pure Pandas Exponential Moving Average)
+    df_d['EMA_50'] = df_d['Close'].ewm(span=50, adjust=False).mean()
+    macro_trend_bullish = df_d['Close'].iloc[-1] > df_d['EMA_50'].iloc[-1]
 
-    df_h['RSI'] = ta.momentum.RSIIndicator(close=close_series, window=14).rsi().fillna(50.0).values
-    df_h['EMA_200'] = ta.trend.EMAIndicator(close=close_series, window=200).ema_indicator().fillna(close_series).values
-    df_h['ATR'] = ta.volatility.AverageTrueRange(high=df_h['High'], low=df_h['Low'], close=df_h['Close'], window=14).average_true_range().fillna(close_series * 0.002).values
+    # 2. Hourly Oscillators & Volatility Bands formulations
+    df_h['RSI'] = calculate_native_rsi(df_h['Close'], 14).fillna(50.0)
+    df_h['EMA_200'] = df_h['Close'].ewm(span=200, adjust=False).mean()
     
-    macd_obj = ta.trend.MACD(close=close_series)
-    df_h['MACD_Hist'] = macd_obj.macd_diff().fillna(0.0).values
+    # Average True Range (ATR)
+    high_low = df_h['High'] - df_h['Low']
+    high_close = np.abs(df_h['High'] - df_h['Close'].shift())
+    low_close = np.abs(df_h['Low'] - df_h['Close'].shift())
+    ranges = pd.concat([high_low, high_close, low_close], axis=1)
+    true_range = ranges.max(axis=1)
+    df_h['ATR'] = true_range.rolling(14).mean().fillna(df_h['Close'] * 0.002)
     
-    bb_obj = ta.volatility.BollingerBands(close=close_series, window=20, window_dev=2)
-    df_h['BB_High'] = bb_obj.bollinger_hband().values
-    df_h['BB_Low'] = bb_obj.bollinger_lband().values
+    # MACD Setup
+    ema12 = df_h['Close'].ewm(span=12, adjust=False).mean()
+    ema26 = df_h['Close'].ewm(span=26, adjust=False).mean()
+    df_h['MACD'] = ema12 - ema26
+    df_h['Signal_Line'] = df_h['MACD'].ewm(span=9, adjust=False).mean()
+    df_h['MACD_Hist'] = df_h['MACD'] - df_h['Signal_Line']
+    
+    # Bollinger Bands Setup
+    df_h['BB_Mid'] = df_h['Close'].rolling(window=20).mean()
+    df_h['BB_Std'] = df_h['Close'].rolling(window=20).std()
+    df_h['BB_High'] = df_h['BB_Mid'] + (df_h['BB_Std'] * 2)
+    df_h['BB_Low'] = df_h['BB_Mid'] - (df_h['BB_Std'] * 2)
 
+    # Multi-candle structure range
     recent_floor = float(df_h['Low'].tail(48).min())
     recent_ceiling = float(df_h['High'].tail(48).max())
     
@@ -184,38 +170,37 @@ def deep_technical_analysis(df_d, df_h):
     direction, color = "⏳ HOLD / STANDBY", "#757575"
     sl, tp = 0.0, 0.0
     
-    if macro_trend_bullish and (price < latest['BB_Low'] * 1.01 or latest['RSI'] < 40) and latest['MACD_Hist'] > 0 and price > latest['EMA_200']:
+    # SYSTEM CONFLUENCE GATEKEEPING CONDITIONS
+    if macro_trend_bullish and (price < latest['BB_Low'] * 1.01 or latest['RSI'] < 42) and latest['MACD_Hist'] > 0 and price > latest['EMA_200']:
         direction, color = "🚀 CONVERGENT BUY", "#4CAF50"
         sl = recent_floor - (atr * 0.5)
         tp = price + (abs(price - sl) * 2.0)
         
-    elif not macro_trend_bullish and (price > latest['BB_High'] * 0.99 or latest['RSI'] > 60) and latest['MACD_Hist'] < 0 and price < latest['EMA_200']:
+    elif not macro_trend_bullish and (price > latest['BB_High'] * 0.99 or latest['RSI'] > 58) and latest['MACD_Hist'] < 0 and price < latest['EMA_200']:
         direction, color = "💥 CONVERGENT SELL", "#E53935"
         sl = recent_ceiling + (atr * 0.5)
         tp = price - (abs(sl - price) * 2.0)
         
     return direction, color, price, float(latest['RSI']), sl, tp, df_h
 
-# FIXED PARSING CORE: Added a session 'first_run' checker variable to enforce background download immediately
-if search_activated or st.session_state["first_run"] or st.session_state["cached_target_asset"] != selected_ticker:
+# Force live metrics generation immediately upon initial runtime mounting
+if search_activated or st.session_state["cached_target_asset"] == "USDZAR=X" or st.session_state["cached_target_asset"] != selected_ticker:
     st.session_state["cached_target_asset"] = selected_ticker
     st.session_state["cached_display_name"] = chosen_display
-    st.session_state["first_run"] = False
     try:
-        with st.spinner("Executing Full Technical Alignment Sweep..."):
-            df_d = yf.Ticker(st.session_state["cached_target_asset"]).history(period="6mo", interval="1d")
-            df_h = yf.Ticker(st.session_state["cached_target_asset"]).history(period="1mo", interval="1h")
-            
-            if not df_d.empty and not df_h.empty:
-                direction, color, price, rsi, sl, tp, df_analyzed = deep_technical_analysis(df_d, df_h)
-                st.session_state["direction"] = direction
-                st.session_state["color"] = color
-                st.session_state["price"] = price
-                st.session_state["h1_rsi"] = rsi
-                st.session_state["stop_loss"] = sl
-                st.session_state["take_profit"] = tp
+        df_d = yf.Ticker(selected_ticker).history(period="6mo", interval="1d")
+        df_h = yf.Ticker(selected_ticker).history(period="1mo", interval="1h")
+        
+        if not df_d.empty and not df_h.empty:
+            direction, color, price, rsi, sl, tp, df_analyzed = deep_technical_analysis(df_d, df_h)
+            st.session_state["direction"] = direction
+            st.session_state["color"] = color
+            st.session_state["price"] = price
+            st.session_state["h1_rsi"] = rsi
+            st.session_state["stop_loss"] = sl
+            st.session_state["take_profit"] = tp
     except Exception as e:
-        st.sidebar.error(f"Matrix Engine Sync Warning: {str(e)}")
+        st.sidebar.error(f"Telemetry Vector Read Drop: {str(e)}")
 
 # ==================== INTERFACE LAYER ====================
 st.sidebar.markdown("<h3 style='color:#4CAF50 !important; font-weight:900;'>☰ MAIN CORE</h3>", unsafe_allow_html=True)
@@ -224,4 +209,12 @@ page_select = st.sidebar.radio("CHOOSE MODULE SHEET:", options=navigation_sheets
 
 if page_select == "📊  TERMINAL SIGNALS":
     st.markdown(f"#### 📡 Telemetry Feed Workspace: <span style='color:#4CAF50;'>{st.session_state['cached_display_name']}</span>", unsafe_allow_html=True)
+    
+    is_zar = "ZAR" in st.session_state['cached_target_asset'] or ".JO" in st.session_state['cached_target_asset']
+    c_prefix = "R " if is_zar else "$ "
+    
+    spot_str = f"{c_prefix}{st.session_state['price']:.4f}"
+    direction_str = str(st.session_state['direction'])
+    color_str = str(st.session_state['color'])
+    h1_rsi_str = f"{st.session_state['h1_rsi']:.1f}"
     
