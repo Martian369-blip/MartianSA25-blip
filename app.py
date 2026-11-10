@@ -154,7 +154,7 @@ def deep_technical_analysis(df_d, df_h):
     df_h = df_h.copy()
     close_series = pd.Series(df_h['Close'].values.flatten())
     
-    # 1. Macro Trend Mapping (Daily)
+    # 1. Macro Trend Mapping (Daily EMA-50 Filter)
     d_close = pd.Series(df_d['Close'].values.flatten())
     daily_ema_50 = ta.trend.EMAIndicator(close=d_close, window=50).ema_indicator().fillna(d_close).iloc[-1]
     macro_trend_bullish = float(d_close.iloc[-1]) > float(daily_ema_50)
@@ -182,14 +182,12 @@ def deep_technical_analysis(df_d, df_h):
     direction, color = "⏳ HOLD / STANDBY", "#757575"
     sl, tp = 0.0, 0.0
     
-    # STRICT CONFIRMATION SIGNALS NODE
-    # Bullish: Macro Trend Up AND Price near BB Low AND RSI Oversold AND MACD Turning positive
+    # STRICT STRATEGIC CONFLUENCE ENGINE
     if macro_trend_bullish and (price < latest['BB_Low'] * 1.01 or latest['RSI'] < 40) and latest['MACD_Hist'] > 0 and price > latest['EMA_200']:
         direction, color = "🚀 CONVERGENT BUY", "#4CAF50"
         sl = recent_floor - (atr * 0.5)
         tp = price + (abs(price - sl) * 2.0)
         
-    # Bearish: Macro Trend Down AND Price near BB High AND RSI Overbought AND MACD Turning negative
     elif not macro_trend_bullish and (price > latest['BB_High'] * 0.99 or latest['RSI'] > 60) and latest['MACD_Hist'] < 0 and price < latest['EMA_200']:
         direction, color = "💥 CONVERGENT SELL", "#E53935"
         sl = recent_ceiling + (atr * 0.5)
@@ -222,3 +220,6 @@ navigation_sheets = ["📊  TERMINAL SIGNALS", "🕹️  LEDGER JOURNAL"]
 page_select = st.sidebar.radio("CHOOSE MODULE SHEET:", options=navigation_sheets)
 
 if page_select == "📊  TERMINAL SIGNALS":
+    st.markdown(f"#### 📡 Telemetry Feed Workspace: <span style='color:#4CAF50;'>{st.session_state['cached_display_name']}</span>", unsafe_allow_html=True)
+    
+    is_zar = "ZAR" in st.session_state['cached_target_asset'] or ".JO" in st.session_state['cached_target_asset']
