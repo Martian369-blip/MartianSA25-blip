@@ -35,7 +35,7 @@ except ImportError:
     has_chart_engine = False
 
 # Initialize premium terminal view window layout
-st.set_page_config(page_title="MARS_BOT V17.2 Pro Desk", page_icon="🛸", layout="wide")
+st.set_page_config(page_title="MARS_BOT V18.0 God Mode", page_icon="🛸", layout="wide")
 
 if has_layout_style:
     try: lc.load_ig_style()
@@ -149,7 +149,7 @@ reverse_map = {v: k for k, v in ig_name_map.items()}
 selected_ticker = reverse_map.get(chosen_display, "USDZAR=X")
 
 with col_trigger:
-    search_activated = st.button("🛰 nighttime SCAN")
+    search_activated = st.button("🛰️ QUANT SCAN")
 
 # ==================== ADVANCED CONFLUENCE ANALYTICS ENGINE ====================
 def deep_technical_analysis(df_d, df_h):
@@ -223,6 +223,8 @@ if page_select == "📊  TERMINAL SIGNALS":
     is_zar = "ZAR" in st.session_state['cached_target_asset'] or ".JO" in st.session_state['cached_target_asset']
     c_prefix = "R " if is_zar else "$ "
     
-    # Decoupled Payload Dashboard Panel
-    html_payload = f"""
-    <div style='background-color: #121620; border: 1px solid #232936; padding: 20px; border-radius: 8px; margin-bottom: 20px;'>
+    spot_str = f"{c_prefix}{st.session_state['price']:.4f}"
+    direction_str = str(st.session_state['direction'])
+    color_str = str(st.session_state['color'])
+    h1_rsi_str = f"{st.session_state['h1_rsi']:.1f}"
+    
