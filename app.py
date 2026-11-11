@@ -3,13 +3,14 @@ import yfinance as yf
 import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
-import requests
+import urllib.request
+import json
 import datetime
 import os
 
 # ==================== 1. PAGE CONFIG & MOBILE UI ====================
 st.set_page_config(
-    page_title="MARS_BOT V21.1 Sovereign Desk",
+    page_title="MARS_BOT V21.2 Sovereign Desk",
     page_icon="🛸",
     layout="wide",
     initial_sidebar_state="collapsed"
@@ -125,12 +126,12 @@ ig_name_map = {
 
 timeframe_configs = {
     "5m Scalp (Fast Intraday)":  {"entry_int": "5m",  "entry_per": "5d",  "macro_int": "1h", "macro_per": "1mo", "swing_bars": 12},
-    "15m Intraday":              {"entry_int": "15m", "entry_per": "10d", "macro_int": "1h", "macro_per": "2mo", "swing_bars": 10},
+    "15m Intraday":              {"entry_int": "15m", "entry_per": "5d",  "macro_int": "1h", "macro_per": "1mo", "swing_bars": 10},
     "1H Swing":                  {"entry_int": "1h",  "entry_per": "1mo", "macro_int": "1d", "macro_per": "6mo", "swing_bars": 8},
     "4H Macro Trend":            {"entry_int": "1h",  "entry_per": "2mo", "macro_int": "1d", "macro_per": "1y",  "swing_bars": 16}
 }
 
-st.markdown("### 🛸 MARS_BOT V21.1 Sovereign Desk")
+st.markdown("### 🛸 MARS_BOT V21.2 Sovereign Desk")
 
 col_asset, col_tf, col_btn = st.columns([0.45, 0.35, 0.20])
 display_options = list(ig_name_map.values())
@@ -147,7 +148,7 @@ with col_tf:
 with col_btn:
     scan_clicked = st.button("🛰️ SCAN", use_container_width=True)
 
-# ==================== 5. MULTI-SOURCE DATA FETCHING ENGINE ====================
+# ==================== 5. DIRECT MULTI-SOURCE DATA ENGINE ====================
 def clean_yf_df(df):
     if df is None or df.empty:
         return pd.DataFrame()
@@ -159,8 +160,36 @@ def clean_yf_df(df):
         return pd.DataFrame()
     return df[required].dropna()
 
+def fetch_yahoo_direct_json(ticker, range_str, interval_str):
+    """Bypasses yfinance library blocks by calling Yahoo Finance Chart API directly with browser headers."""
+    encoded_ticker = urllib.request.quote(ticker)
+    url = f"https://yahoo.com{encoded_ticker}?range={range_str}&interval={interval_str}"
+    req = urllib.request.Request(
+        url,
+        headers={
+            "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1",
+            "Accept": "application/json"
+        }
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=8) as resp:
+            data = json.loads(resp.read().decode("utf-8"))
+            result = data["chart"]["result"][0]
+            timestamps = result["timestamp"]
+            quote = result["indicators"]["quote"][0]
+            df = pd.DataFrame({
+                "Date": pd.to_datetime(timestamps, unit="s"),
+                "Open": quote["open"],
+                "High": quote["high"],
+                "Low": quote["low"],
+                "Close": quote["close"]
+            }).set_index("Date").dropna()
+            return df
+    except Exception:
+        return pd.DataFrame()
+
 def fetch_frankfurter_fallback(ticker, days=120):
-    """Backup FX feed (no API key needed) if Yahoo Finance throttles cloud IPs."""
+    """Central Bank FX fallback (zero API keys needed)."""
     pair = ticker.replace("=X", "")
     if len(pair) != 6:
         return pd.DataFrame()
@@ -169,9 +198,9 @@ def fetch_frankfurter_fallback(ticker, days=120):
     start_dt = end_dt - datetime.timedelta(days=days)
     url = f"https://frankfurter.app{start_dt}..{end_dt}?from={base}&to={quote}"
     try:
-        r = requests.get(url, timeout=8)
-        if r.status_code == 200:
-            rates = r.json().get("rates", {})
+        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+        with urllib.request.urlopen(req, timeout=8) as resp:
+            rates = json.loads(resp.read().decode("utf-8")).get("rates", {})
             rows = []
             for dt_str, val_dict in sorted(rates.items()):
                 c = float(val_dict[quote])
@@ -188,79 +217,41 @@ def fetch_frankfurter_fallback(ticker, days=120):
         pass
     return pd.DataFrame()
 
-@st.cache_data(ttl=60)
 def fetch_live_usdzar():
+    df_zar = fetch_yahoo_direct_json("USDZAR=X", "5d", "1h")
+    if not df_zar.empty:
+        return float(df_zar["Close"].iloc[-1])
     try:
-        fx = clean_yf_df(yf.Ticker("USDZAR=X").history(period="5d", interval="1h"))
-        if not fx.empty:
-            return float(fx["Close"].iloc[-1])
-    except Exception:
-        pass
-    try:
-        r = requests.get("https://frankfurter.applatest?from=USD&to=ZAR", timeout=5)
-        if r.status_code == 200:
-            return float(r.json()["rates"]["ZAR"])
+        req = urllib.request.Request("https://frankfurter.applatest?from=USD&to=ZAR", headers={"User-Agent": "Mozilla/5.0"})
+        with urllib.request.urlopen(req, timeout=5) as resp:
+            return float(json.loads(resp.read().decode("utf-8"))["rates"]["ZAR"])
     except Exception:
         pass
     return 18.20
 
-@st.cache_data(ttl=30)
 def fetch_market_frames(ticker, entry_int, entry_per, macro_int, macro_per):
     df_entry, df_macro = pd.DataFrame(), pd.DataFrame()
-    source_used = "Yahoo Finance Live"
+    source_used = "Yahoo Direct Chart Feed"
+    debug_log = []
 
-    # Attempt 1: yf.Ticker().history()
-    try:
-        t = yf.Ticker(ticker)
-        df_entry = clean_yf_df(t.history(period=entry_per, interval=entry_int))
-        df_macro = clean_yf_df(t.history(period=macro_per, interval=macro_int))
-    except Exception:
-        pass
-
-    # Attempt 2: yf.download() fallback
+    # Tier 1: Yahoo Direct v8 Chart JSON API (Fastest & bypasses yfinance blocks)
+    df_entry = fetch_yahoo_direct_json(ticker, entry_per, entry_int)
+    df_macro = fetch_yahoo_direct_json(ticker, macro_per, macro_int)
     if df_entry.empty:
+        debug_log.append("Tier 1 (Yahoo Direct) empty")
+
+    # Tier 2: yfinance library fallback
+    if df_entry.empty or df_macro.empty:
         try:
-            df_entry = clean_yf_df(yf.download(ticker, period=entry_per, interval=entry_int, progress=False, threads=False))
-            df_macro = clean_yf_df(yf.download(ticker, period=macro_per, interval=macro_int, progress=False, threads=False))
-        except Exception:
-            pass
+            t = yf.Ticker(ticker)
+            if df_entry.empty:
+                df_entry = clean_yf_df(t.history(period=entry_per, interval=entry_int))
+            if df_macro.empty:
+                df_macro = clean_yf_df(t.history(period=macro_per, interval=macro_int))
+            if not df_entry.empty:
+                source_used = "yfinance Library Feed"
+            else:
+                debug_log.append("Tier 2 (yfinance) empty")
+        except Exception as e:
+            debug_log.append(f"Tier 2 error: {e}")
 
-    # Attempt 3: Frankfurter Central Bank FX Backup (for Forex pairs if Yahoo blocks cloud IP)
-    if df_entry.empty and ticker.endswith("=X"):
-        df_macro = fetch_frankfurter_fallback(ticker, days=180)
-        df_entry = df_macro.tail(60).copy()
-        source_used = "ECB/Frankfurter FX Backup (Daily Structure)"
-
-    return df_entry, df_macro, source_used
-
-# ==================== 6. TECHNICAL & RISK ENGINE ====================
-def calculate_wilder_rsi(series, period=14):
-    delta = series.diff()
-    gain = delta.where(delta > 0, 0.0)
-    loss = -delta.where(delta < 0, 0.0)
-    avg_gain = gain.ewm(alpha=1/period, min_periods=period, adjust=False).mean()
-    avg_loss = loss.ewm(alpha=1/period, min_periods=period, adjust=False).mean()
-    rs = avg_gain / (avg_loss + 1e-9)
-    return 100.0 - (100.0 / (1.0 + rs))
-
-def run_quant_engine(df_entry, df_macro, swing_bars, ticker, usdzar_rate, risk_zar):
-    df_e = df_entry.copy()
-    df_m = df_macro.copy()
-
-    # 1. Higher-Timeframe Macro Trend Filter
-    df_m["EMA_50"] = df_m["Close"].ewm(span=50, adjust=False).mean()
-    macro_bullish = bool(df_m["Close"].iloc[-1] > df_m["EMA_50"].iloc[-1])
-
-    # 2. Entry Timeframe Indicators
-    df_e["RSI"] = calculate_wilder_rsi(df_e["Close"], 14).fillna(50.0)
-    df_e["EMA_50"] = df_e["Close"].ewm(span=50, adjust=False).mean()
-    df_e["EMA_200"] = df_e["Close"].ewm(span=200, adjust=False).mean()
-
-    # ATR (14)
-    hl = df_e["High"] - df_e["Low"]
-    hc = np.abs(df_e["High"] - df_e["Close"].shift())
-    lc = np.abs(df_e["Low"] - df_e["Close"].shift())
-    tr = pd.concat([hl, hc, lc], axis=1).max(axis=1)
-    df_e["ATR"] = tr.rolling(14).mean().bfill()
-
-    # MACD
