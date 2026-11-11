@@ -10,7 +10,7 @@ import os
 
 # ==================== 1. PAGE CONFIG & MOBILE UI ====================
 st.set_page_config(
-    page_title="MARS_BOT V21.2 Sovereign Desk",
+    page_title="MARS_BOT V22.0 Sovereign Desk",
     page_icon="🛸",
     layout="wide",
     initial_sidebar_state="collapsed"
@@ -47,15 +47,10 @@ def load_persistent_ledger():
 def save_persistent_ledger(df):
     df.to_csv(PERSISTENT_FILE, index=False)
 
-# ==================== 2. SESSION STATE INITIALIZATION ====================
 if "journal_db" not in st.session_state:
     st.session_state["journal_db"] = load_persistent_ledger()
-if "scan_results" not in st.session_state:
-    st.session_state["scan_results"] = None
-if "last_scanned_key" not in st.session_state:
-    st.session_state["last_scanned_key"] = ""
 
-# ==================== 3. SIDEBAR: MANUAL ZAR CAPITAL & RISK ====================
+# ==================== 2. SIDEBAR: MANUAL ZAR CAPITAL & RISK ====================
 st.sidebar.markdown("### 🛡️ Capital Defense Deck (ZAR)")
 account_balance_zar = st.sidebar.number_input(
     "Manual Wallet Balance (ZAR)",
@@ -74,7 +69,7 @@ max_risk_allowed_pct = st.sidebar.slider(
 max_risk_zar = account_balance_zar * (max_risk_allowed_pct / 100.0)
 st.sidebar.info(f"💰 Max Risk Budget: **R{max_risk_zar:.2f}** per trade")
 
-# ==================== 4. ASSET & TIMEFRAME CATALOG ====================
+# ==================== 3. ASSET & TIMEFRAME CATALOG ====================
 ig_name_map = {
     "GBPUSD=X": "GBP/USD (Cable)",
     "AUDUSD=X": "AUD/USD (Aussie)",
@@ -131,7 +126,7 @@ timeframe_configs = {
     "4H Macro Trend":            {"entry_int": "1h",  "entry_per": "2mo", "macro_int": "1d", "macro_per": "1y",  "swing_bars": 16}
 }
 
-st.markdown("### 🛸 MARS_BOT V21.2 Sovereign Desk")
+st.markdown("### 🛸 MARS_BOT V22.0 Sovereign Desk")
 
 col_asset, col_tf, col_btn = st.columns([0.45, 0.35, 0.20])
 display_options = list(ig_name_map.values())
@@ -148,7 +143,7 @@ with col_tf:
 with col_btn:
     scan_clicked = st.button("🛰️ SCAN", use_container_width=True)
 
-# ==================== 5. DIRECT MULTI-SOURCE DATA ENGINE ====================
+# ==================== 4. ROCK-SOLID DATA ENGINE ====================
 def clean_yf_df(df):
     if df is None or df.empty:
         return pd.DataFrame()
@@ -160,57 +155,67 @@ def clean_yf_df(df):
         return pd.DataFrame()
     return df[required].dropna()
 
-def fetch_yahoo_direct_json(ticker, range_str, interval_str):
-    """Bypasses yfinance library blocks by calling Yahoo Finance Chart API directly with browser headers."""
+def fetch_yahoo_direct(ticker, range_str, interval_str):
+    """Calls Yahoo Finance v8 Chart JSON endpoint directly (fixed list indexing [0])."""
     encoded_ticker = urllib.request.quote(ticker)
-    url = f"https://yahoo.com{encoded_ticker}?range={range_str}&interval={interval_str}"
-    req = urllib.request.Request(
-        url,
-        headers={
-            "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1",
-            "Accept": "application/json"
-        }
-    )
-    try:
-        with urllib.request.urlopen(req, timeout=8) as resp:
-            data = json.loads(resp.read().decode("utf-8"))
-            result = data["chart"]["result"][0]
-            timestamps = result["timestamp"]
-            quote = result["indicators"]["quote"][0]
-            df = pd.DataFrame({
-                "Date": pd.to_datetime(timestamps, unit="s"),
-                "Open": quote["open"],
-                "High": quote["high"],
-                "Low": quote["low"],
-                "Close": quote["close"]
-            }).set_index("Date").dropna()
-            return df
-    except Exception:
-        return pd.DataFrame()
+    for host in ["://yahoo.com", "://yahoo.com"]:
+        url = f"https://{host}/v8/finance/chart/{encoded_ticker}?range={range_str}&interval={interval_str}"
+        req = urllib.request.Request(
+            url,
+            headers={
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+                "Accept": "application/json"
+            }
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=8) as resp:
+                raw = json.loads(resp.read().decode("utf-8"))
+                res_list = raw.get("chart", {}).get("result")
+                if not res_list:
+                    continue
+                result = res_list[0]
+                timestamps = result.get("timestamp", [])
+                quote_list = result.get("indicators", {}).get("quote", [])
+                if not timestamps or not quote_list:
+                    continue
+                quote = quote_list[0]
+                df = pd.DataFrame({
+                    "Date": pd.to_datetime(timestamps, unit="s"),
+                    "Open": quote.get("open"),
+                    "High": quote.get("high"),
+                    "Low": quote.get("low"),
+                    "Close": quote.get("close")
+                }).set_index("Date").dropna()
+                if not df.empty:
+                    return df, ""
+        except Exception as e:
+            err_msg = str(e)
+    return pd.DataFrame(), err_msg if "err_msg" in locals() else "No data"
 
-def fetch_frankfurter_fallback(ticker, days=120):
-    """Central Bank FX fallback (zero API keys needed)."""
+def fetch_frankfurter_v1(ticker, days=120):
+    """Frankfurter v1 Central Bank FX Backup (zero API key required)."""
     pair = ticker.replace("=X", "")
     if len(pair) != 6:
         return pd.DataFrame()
     base, quote = pair[:3], pair[3:]
     end_dt = datetime.date.today()
     start_dt = end_dt - datetime.timedelta(days=days)
-    url = f"https://frankfurter.app{start_dt}..{end_dt}?from={base}&to={quote}"
+    url = f"https://frankfurter.dev{start_dt}..{end_dt}?base={base}&symbols={quote}"
     try:
         req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
         with urllib.request.urlopen(req, timeout=8) as resp:
             rates = json.loads(resp.read().decode("utf-8")).get("rates", {})
             rows = []
             for dt_str, val_dict in sorted(rates.items()):
-                c = float(val_dict[quote])
-                rows.append({
-                    "Date": pd.to_datetime(dt_str),
-                    "Open": c,
-                    "High": c * 1.0015,
-                    "Low": c * 0.9985,
-                    "Close": c
-                })
+                if quote in val_dict:
+                    c = float(val_dict[quote])
+                    rows.append({
+                        "Date": pd.to_datetime(dt_str),
+                        "Open": c,
+                        "High": c * 1.0012,
+                        "Low": c * 0.9988,
+                        "Close": c
+                    })
             if rows:
                 return pd.DataFrame(rows).set_index("Date")
     except Exception:
@@ -218,40 +223,34 @@ def fetch_frankfurter_fallback(ticker, days=120):
     return pd.DataFrame()
 
 def fetch_live_usdzar():
-    df_zar = fetch_yahoo_direct_json("USDZAR=X", "5d", "1h")
+    df_zar, _ = fetch_yahoo_direct("USDZAR=X", "5d", "1h")
     if not df_zar.empty:
         return float(df_zar["Close"].iloc[-1])
     try:
-        req = urllib.request.Request("https://frankfurter.applatest?from=USD&to=ZAR", headers={"User-Agent": "Mozilla/5.0"})
+        req = urllib.request.Request("https://frankfurter.devlatest?base=USD&symbols=ZAR", headers={"User-Agent": "Mozilla/5.0"})
         with urllib.request.urlopen(req, timeout=5) as resp:
             return float(json.loads(resp.read().decode("utf-8"))["rates"]["ZAR"])
     except Exception:
         pass
     return 18.20
 
-def fetch_market_frames(ticker, entry_int, entry_per, macro_int, macro_per):
-    df_entry, df_macro = pd.DataFrame(), pd.DataFrame()
-    source_used = "Yahoo Direct Chart Feed"
-    debug_log = []
+def get_market_data(ticker, entry_int, entry_per, macro_int, macro_per):
+    logs = []
+    # 1. Direct Yahoo JSON v8
+    df_entry, err1 = fetch_yahoo_direct(ticker, entry_per, entry_int)
+    df_macro, err2 = fetch_yahoo_direct(ticker, macro_per, macro_int)
+    if not df_entry.empty and not df_macro.empty:
+        return df_entry, df_macro, "Yahoo Direct Live", ""
+    logs.append(f"YahooDirect: {err1 or err2}")
 
-    # Tier 1: Yahoo Direct v8 Chart JSON API (Fastest & bypasses yfinance blocks)
-    df_entry = fetch_yahoo_direct_json(ticker, entry_per, entry_int)
-    df_macro = fetch_yahoo_direct_json(ticker, macro_per, macro_int)
-    if df_entry.empty:
-        debug_log.append("Tier 1 (Yahoo Direct) empty")
-
-    # Tier 2: yfinance library fallback
-    if df_entry.empty or df_macro.empty:
-        try:
-            t = yf.Ticker(ticker)
-            if df_entry.empty:
-                df_entry = clean_yf_df(t.history(period=entry_per, interval=entry_int))
-            if df_macro.empty:
-                df_macro = clean_yf_df(t.history(period=macro_per, interval=macro_int))
-            if not df_entry.empty:
-                source_used = "yfinance Library Feed"
-            else:
-                debug_log.append("Tier 2 (yfinance) empty")
-        except Exception as e:
-            debug_log.append(f"Tier 2 error: {e}")
-
+    # 2. yfinance library fallback
+    try:
+        t = yf.Ticker(ticker)
+        if df_entry.empty:
+            df_entry = clean_yf_df(t.history(period=entry_per, interval=entry_int))
+        if df_macro.empty:
+            df_macro = clean_yf_df(t.history(period=macro_per, interval=macro_int))
+        if not df_entry.empty and not df_macro.empty:
+            return df_entry, df_macro, "yfinance Live", ""
+        logs.append("yfinance: empty")
+    except Exception as e:
