@@ -10,7 +10,7 @@ import os
 
 # ==================== 1. PAGE CONFIG & MOBILE UI ====================
 st.set_page_config(
-    page_title="MARS_BOT V22.0 Sovereign Desk",
+    page_title="MARS_BOT V22.1 Sovereign Desk",
     page_icon="🛸",
     layout="wide",
     initial_sidebar_state="collapsed"
@@ -41,7 +41,7 @@ def load_persistent_ledger():
             if not df.empty:
                 return df
         except Exception:
-            pass
+            return pd.DataFrame(columns=["Timestamp", "Asset", "Timeframe", "Action", "Price", "SL", "TP", "Lots", "RSI"])
     return pd.DataFrame(columns=["Timestamp", "Asset", "Timeframe", "Action", "Price", "SL", "TP", "Lots", "RSI"])
 
 def save_persistent_ledger(df):
@@ -126,7 +126,7 @@ timeframe_configs = {
     "4H Macro Trend":            {"entry_int": "1h",  "entry_per": "2mo", "macro_int": "1d", "macro_per": "1y",  "swing_bars": 16}
 }
 
-st.markdown("### 🛸 MARS_BOT V22.0 Sovereign Desk")
+st.markdown("### 🛸 MARS_BOT V22.1 Sovereign Desk")
 
 col_asset, col_tf, col_btn = st.columns([0.45, 0.35, 0.20])
 display_options = list(ig_name_map.values())
@@ -156,8 +156,8 @@ def clean_yf_df(df):
     return df[required].dropna()
 
 def fetch_yahoo_direct(ticker, range_str, interval_str):
-    """Calls Yahoo Finance v8 Chart JSON endpoint directly (fixed list indexing [0])."""
     encoded_ticker = urllib.request.quote(ticker)
+    err_msg = "No data"
     for host in ["://yahoo.com", "://yahoo.com"]:
         url = f"https://{host}/v8/finance/chart/{encoded_ticker}?range={range_str}&interval={interval_str}"
         req = urllib.request.Request(
@@ -173,12 +173,12 @@ def fetch_yahoo_direct(ticker, range_str, interval_str):
                 res_list = raw.get("chart", {}).get("result")
                 if not res_list:
                     continue
-                result = res_list[0]
-                timestamps = result.get("timestamp", [])
-                quote_list = result.get("indicators", {}).get("quote", [])
+                first_res = res_list.pop(0)
+                timestamps = first_res.get("timestamp", [])
+                quote_list = first_res.get("indicators", {}).get("quote", [])
                 if not timestamps or not quote_list:
                     continue
-                quote = quote_list[0]
+                quote = quote_list.pop(0)
                 df = pd.DataFrame({
                     "Date": pd.to_datetime(timestamps, unit="s"),
                     "Open": quote.get("open"),
@@ -190,10 +190,9 @@ def fetch_yahoo_direct(ticker, range_str, interval_str):
                     return df, ""
         except Exception as e:
             err_msg = str(e)
-    return pd.DataFrame(), err_msg if "err_msg" in locals() else "No data"
+    return pd.DataFrame(), err_msg
 
 def fetch_frankfurter_v1(ticker, days=120):
-    """Frankfurter v1 Central Bank FX Backup (zero API key required)."""
     pair = ticker.replace("=X", "")
     if len(pair) != 6:
         return pd.DataFrame()
@@ -219,7 +218,7 @@ def fetch_frankfurter_v1(ticker, days=120):
             if rows:
                 return pd.DataFrame(rows).set_index("Date")
     except Exception:
-        pass
+        return pd.DataFrame()
     return pd.DataFrame()
 
 def fetch_live_usdzar():
@@ -231,19 +230,16 @@ def fetch_live_usdzar():
         with urllib.request.urlopen(req, timeout=5) as resp:
             return float(json.loads(resp.read().decode("utf-8"))["rates"]["ZAR"])
     except Exception:
-        pass
-    return 18.20
+        return 18.20
 
 def get_market_data(ticker, entry_int, entry_per, macro_int, macro_per):
     logs = []
-    # 1. Direct Yahoo JSON v8
     df_entry, err1 = fetch_yahoo_direct(ticker, entry_per, entry_int)
     df_macro, err2 = fetch_yahoo_direct(ticker, macro_per, macro_int)
     if not df_entry.empty and not df_macro.empty:
         return df_entry, df_macro, "Yahoo Direct Live", ""
     logs.append(f"YahooDirect: {err1 or err2}")
 
-    # 2. yfinance library fallback
     try:
         t = yf.Ticker(ticker)
         if df_entry.empty:
@@ -254,3 +250,5 @@ def get_market_data(ticker, entry_int, entry_per, macro_int, macro_per):
             return df_entry, df_macro, "yfinance Live", ""
         logs.append("yfinance: empty")
     except Exception as e:
+        logs.append(f"yfinance: {e}")
+
