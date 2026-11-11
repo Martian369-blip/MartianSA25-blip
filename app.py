@@ -3,12 +3,13 @@ import yfinance as yf
 import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
+import requests
 import datetime
 import os
 
 # ==================== 1. PAGE CONFIG & MOBILE UI ====================
 st.set_page_config(
-    page_title="MARS_BOT V21.0 Sovereign Desk",
+    page_title="MARS_BOT V21.1 Sovereign Desk",
     page_icon="🛸",
     layout="wide",
     initial_sidebar_state="collapsed"
@@ -16,14 +17,14 @@ st.set_page_config(
 
 st.markdown("""
     <style>
-    .block-container { padding-top: 1.2rem; padding-bottom: 2rem; }
-    div[data-testid="stMetricValue"] { font-size: 1.4rem; }
+    .block-container { padding-top: 2.8rem; padding-bottom: 2rem; }
+    div[data-testid="stMetricValue"] { font-size: 1.35rem; }
     .signal-box {
         padding: 16px;
         border-radius: 10px;
         text-align: center;
         font-weight: bold;
-        font-size: 1.35rem;
+        font-size: 1.3rem;
         margin-bottom: 12px;
         color: white;
     }
@@ -129,7 +130,7 @@ timeframe_configs = {
     "4H Macro Trend":            {"entry_int": "1h",  "entry_per": "2mo", "macro_int": "1d", "macro_per": "1y",  "swing_bars": 16}
 }
 
-st.markdown("### 🛸 MARS_BOT V21.0 Sovereign Desk")
+st.markdown("### 🛸 MARS_BOT V21.1 Sovereign Desk")
 
 col_asset, col_tf, col_btn = st.columns([0.45, 0.35, 0.20])
 display_options = list(ig_name_map.values())
@@ -146,31 +147,93 @@ with col_tf:
 with col_btn:
     scan_clicked = st.button("🛰️ SCAN", use_container_width=True)
 
-# ==================== 5. DATA FETCHING & TECHNICAL ENGINE ====================
+# ==================== 5. MULTI-SOURCE DATA FETCHING ENGINE ====================
 def clean_yf_df(df):
     if df is None or df.empty:
         return pd.DataFrame()
     if isinstance(df.columns, pd.MultiIndex):
         df.columns = df.columns.get_level_values(0)
     df = df.loc[:, ~df.columns.duplicated()].copy()
-    return df.dropna()
+    required = ["Open", "High", "Low", "Close"]
+    if not all(col in df.columns for col in required):
+        return pd.DataFrame()
+    return df[required].dropna()
 
-@st.cache_data(ttl=45)
+def fetch_frankfurter_fallback(ticker, days=120):
+    """Backup FX feed (no API key needed) if Yahoo Finance throttles cloud IPs."""
+    pair = ticker.replace("=X", "")
+    if len(pair) != 6:
+        return pd.DataFrame()
+    base, quote = pair[:3], pair[3:]
+    end_dt = datetime.date.today()
+    start_dt = end_dt - datetime.timedelta(days=days)
+    url = f"https://frankfurter.app{start_dt}..{end_dt}?from={base}&to={quote}"
+    try:
+        r = requests.get(url, timeout=8)
+        if r.status_code == 200:
+            rates = r.json().get("rates", {})
+            rows = []
+            for dt_str, val_dict in sorted(rates.items()):
+                c = float(val_dict[quote])
+                rows.append({
+                    "Date": pd.to_datetime(dt_str),
+                    "Open": c,
+                    "High": c * 1.0015,
+                    "Low": c * 0.9985,
+                    "Close": c
+                })
+            if rows:
+                return pd.DataFrame(rows).set_index("Date")
+    except Exception:
+        pass
+    return pd.DataFrame()
+
+@st.cache_data(ttl=60)
 def fetch_live_usdzar():
     try:
-        fx = clean_yf_df(yf.download("USDZAR=X", period="2d", interval="1h", progress=False))
+        fx = clean_yf_df(yf.Ticker("USDZAR=X").history(period="5d", interval="1h"))
         if not fx.empty:
             return float(fx["Close"].iloc[-1])
     except Exception:
         pass
-    return 18.20  # Fallback rate
+    try:
+        r = requests.get("https://frankfurter.applatest?from=USD&to=ZAR", timeout=5)
+        if r.status_code == 200:
+            return float(r.json()["rates"]["ZAR"])
+    except Exception:
+        pass
+    return 18.20
 
 @st.cache_data(ttl=30)
 def fetch_market_frames(ticker, entry_int, entry_per, macro_int, macro_per):
-    df_entry = clean_yf_df(yf.download(ticker, period=entry_per, interval=entry_int, progress=False))
-    df_macro = clean_yf_df(yf.download(ticker, period=macro_per, interval=macro_int, progress=False))
-    return df_entry, df_macro
+    df_entry, df_macro = pd.DataFrame(), pd.DataFrame()
+    source_used = "Yahoo Finance Live"
 
+    # Attempt 1: yf.Ticker().history()
+    try:
+        t = yf.Ticker(ticker)
+        df_entry = clean_yf_df(t.history(period=entry_per, interval=entry_int))
+        df_macro = clean_yf_df(t.history(period=macro_per, interval=macro_int))
+    except Exception:
+        pass
+
+    # Attempt 2: yf.download() fallback
+    if df_entry.empty:
+        try:
+            df_entry = clean_yf_df(yf.download(ticker, period=entry_per, interval=entry_int, progress=False, threads=False))
+            df_macro = clean_yf_df(yf.download(ticker, period=macro_per, interval=macro_int, progress=False, threads=False))
+        except Exception:
+            pass
+
+    # Attempt 3: Frankfurter Central Bank FX Backup (for Forex pairs if Yahoo blocks cloud IP)
+    if df_entry.empty and ticker.endswith("=X"):
+        df_macro = fetch_frankfurter_fallback(ticker, days=180)
+        df_entry = df_macro.tail(60).copy()
+        source_used = "ECB/Frankfurter FX Backup (Daily Structure)"
+
+    return df_entry, df_macro, source_used
+
+# ==================== 6. TECHNICAL & RISK ENGINE ====================
 def calculate_wilder_rsi(series, period=14):
     delta = series.diff()
     gain = delta.where(delta > 0, 0.0)
@@ -201,54 +264,3 @@ def run_quant_engine(df_entry, df_macro, swing_bars, ticker, usdzar_rate, risk_z
     df_e["ATR"] = tr.rolling(14).mean().bfill()
 
     # MACD
-    ema12 = df_e["Close"].ewm(span=12, adjust=False).mean()
-    ema26 = df_e["Close"].ewm(span=26, adjust=False).mean()
-    df_e["MACD"] = ema12 - ema26
-    df_e["Signal_Line"] = df_e["MACD"].ewm(span=9, adjust=False).mean()
-    df_e["MACD_Hist"] = df_e["MACD"] - df_e["Signal_Line"]
-
-    # Bollinger Bands
-    df_e["BB_Mid"] = df_e["Close"].rolling(20).mean()
-    df_e["BB_Std"] = df_e["Close"].rolling(20).std()
-    df_e["BB_High"] = df_e["BB_Mid"] + (df_e["BB_Std"] * 2)
-    df_e["BB_Low"] = df_e["BB_Mid"] - (df_e["BB_Std"] * 2)
-
-    latest = df_e.iloc[-1]
-    prev = df_e.iloc[-2] if len(df_e) > 1 else latest
-
-    price = float(latest["Close"])
-    atr = float(latest["ATR"])
-    rsi_now = float(latest["RSI"])
-    rsi_prev = float(prev["RSI"])
-
-    recent_floor = float(df_e["Low"].tail(swing_bars).min())
-    recent_ceiling = float(df_e["High"].tail(swing_bars).max())
-
-    # 3. Multi-Tier Signal Confluence Logic
-    direction = "⏳ HOLD / STANDBY"
-    color = "#546E7A"
-    sl = 0.0
-    tp = 0.0
-    setup_note = "No high-probability confluence yet. Wait for pullback or momentum shift."
-
-    # Tier A: High-Probability Trend Continuation
-    if macro_bullish and price > latest["EMA_200"] and (rsi_now < 45 or price <= latest["BB_Low"] * 1.002) and latest["MACD_Hist"] > prev["MACD_Hist"]:
-        direction = "🚀 TREND BUY (HIGH PROB)"
-        color = "#2E7D32"
-        sl = min(recent_floor - (atr * 0.3), price - (atr * 1.5))
-        tp = price + (abs(price - sl) * 1.8)
-        setup_note = "Macro uptrend aligned + pullback support + turning bullish momentum."
-
-    elif not macro_bullish and price < latest["EMA_200"] and (rsi_now > 55 or price >= latest["BB_High"] * 0.998) and latest["MACD_Hist"] < prev["MACD_Hist"]:
-        direction = "💥 TREND SELL (HIGH PROB)"
-        color = "#C62828"
-        sl = max(recent_ceiling + (atr * 0.3), price + (atr * 1.5))
-        tp = price - (abs(sl - price) * 1.8)
-        setup_note = "Macro downtrend aligned + pullback resistance + turning bearish momentum."
-
-    # Tier B: Counter-Trend Bounce Warning (Prevents "Falling Knife" Traps)
-    elif rsi_prev < 30 and rsi_now >= 30 and latest["MACD_Hist"] > prev["MACD_Hist"]:
-        direction = "⚠️ SCALP BOUNCE BUY (COUNTER-TREND)"
-        color = "#EF6C00"
-        sl = recent_floor - (atr * 0.4)
-        tp = price + (abs(price - sl) * 1.5)
